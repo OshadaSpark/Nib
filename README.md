@@ -1,6 +1,6 @@
 # typer
 
-A minimal Markdown and text editor for the browser, built on [CodeMirror 6](https://codemirror.net)
+A minimal Markdown and text editor for local files, built on [CodeMirror 6](https://codemirror.net)
 with [Svelte 5](https://svelte.dev), [TypeScript](https://www.typescriptlang.org) and
 [Vite](https://vite.dev).
 
@@ -35,6 +35,7 @@ pnpm dev
 src/
   lib/              Reusable components and modules, imported via `$lib/...`
     editor/         The CodeMirror editor component, its extensions and theme
+    files/          Opening and saving local files, and the state of the open file
   App.svelte        Root component
   main.ts           Entry point
 public/             Static files served as-is from the base path
@@ -60,6 +61,8 @@ The editor is [CodeMirror 6](https://codemirror.net), configured in
   [attachment](https://svelte.dev/docs/svelte/@attach) and destroys it on unmount.
 - `extensions.ts` is a hand-picked set of extensions for writing prose. It stands in for
   `basicSetup`, which is aimed at code editing (line numbers, fold gutters, …).
+- `extensions.ts` also picks the language by file extension: Markdown for `.md` and `.markdown`,
+  plain text for everything else.
 - `theme.ts` defines the layout and syntax highlighting. Colours come from the custom properties in
   [`src/app.css`](src/app.css), so light and dark mode need no separate themes.
 
@@ -67,12 +70,32 @@ Every `@codemirror/*` and `@lezer/*` package imported by the app must be a direc
 pnpm does not expose transitive ones. Keep them on compatible versions: CodeMirror breaks when more
 than one copy of `@codemirror/state` is installed (`pnpm why @codemirror/state` should list one).
 
+## Files
+
+Files are opened and saved in [`src/lib/files/`](src/lib/files):
+
+- `fileAccess.ts` uses the
+  [File System Access API](https://developer.mozilla.org/docs/Web/API/File_System_API) where it is
+  available (Chromium-based browsers), so saving writes back to the opened file. Other browsers open
+  files with a file input and save them as downloads.
+- `textFile.svelte.ts` holds the open file. It tracks unsaved changes against the last saved content
+  and restores the file's line breaks (LF or CRLF) on save, as CodeMirror normalises them to LF.
+- `workspace.svelte.ts` implements New, Open, Save and Save as. It asks before discarding unsaved
+  changes, and reports failures in the header.
+
+| Shortcut       | Action  |
+| -------------- | ------- |
+| ⌘/Ctrl+O       | Open    |
+| ⌘/Ctrl+S       | Save    |
+| ⌘/Ctrl+Shift+S | Save as |
+
 ## TypeScript
 
 - `tsconfig.base.json` holds the shared strictness settings (`strict`, `noUncheckedIndexedAccess`,
   `exactOptionalPropertyTypes`, `erasableSyntaxOnly`, …).
 - `tsconfig.app.json` covers the browser code in `src/` (including tests).
-- `tsconfig.node.json` covers the Node.js tooling: `*.config.ts`, `svelte.config.js` and `e2e/`.
+- `tsconfig.node.json` covers the Node.js tooling: `*.config.ts` and `svelte.config.js`.
+- `tsconfig.e2e.json` covers the E2E tests in `e2e/`, with DOM types for code that runs in the page.
 
 All Svelte components must use `<script lang="ts">` (enforced by ESLint), and runes mode is enforced
 for project code in [`svelte.config.js`](svelte.config.js).
