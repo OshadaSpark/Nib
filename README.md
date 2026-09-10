@@ -1,6 +1,8 @@
 # typer
 
-A [Svelte 5](https://svelte.dev) + [TypeScript](https://www.typescriptlang.org) app built with [Vite](https://vite.dev).
+A minimal Markdown and text editor for the browser, built on [CodeMirror 6](https://codemirror.net)
+with [Svelte 5](https://svelte.dev), [TypeScript](https://www.typescriptlang.org) and
+[Vite](https://vite.dev).
 
 ## Requirements
 
@@ -32,7 +34,7 @@ pnpm dev
 ```text
 src/
   lib/              Reusable components and modules, imported via `$lib/...`
-  assets/           Assets imported from code (processed by Vite)
+    editor/         The CodeMirror editor component, its extensions and theme
   App.svelte        Root component
   main.ts           Entry point
 public/             Static files served as-is from the base path
@@ -46,8 +48,24 @@ e2e/                Playwright E2E tests
 `resolve.tsconfigPaths`, so add new aliases there only.
 
 ```ts
-import Counter from '$lib/Counter.svelte'
+import Editor from '$lib/editor/Editor.svelte'
 ```
+
+## Editor
+
+The editor is [CodeMirror 6](https://codemirror.net), configured in
+[`src/lib/editor/`](src/lib/editor):
+
+- `Editor.svelte` mounts an `EditorView` through a Svelte
+  [attachment](https://svelte.dev/docs/svelte/@attach) and destroys it on unmount.
+- `extensions.ts` is a hand-picked set of extensions for writing prose. It stands in for
+  `basicSetup`, which is aimed at code editing (line numbers, fold gutters, …).
+- `theme.ts` defines the layout and syntax highlighting. Colours come from the custom properties in
+  [`src/app.css`](src/app.css), so light and dark mode need no separate themes.
+
+Every `@codemirror/*` and `@lezer/*` package imported by the app must be a direct dependency, as
+pnpm does not expose transitive ones. Keep them on compatible versions: CodeMirror breaks when more
+than one copy of `@codemirror/state` is installed (`pnpm why @codemirror/state` should list one).
 
 ## TypeScript
 
