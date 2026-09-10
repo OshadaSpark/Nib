@@ -1,0 +1,19 @@
+name: Setup
+description: Install pnpm and Node.js, then install dependencies from the lockfile.
+
+runs:
+  using: composite
+  steps:
+    - name: Install pnpm
+      uses: pnpm/action-setup@v6
+      with:
+        cache: true
+
+    - name: Install Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

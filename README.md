@@ -1,47 +1,103 @@
-# Svelte + TS + Vite
+# typer
 
-This template should help get you started developing with Svelte and TypeScript in Vite.
+A [Svelte 5](https://svelte.dev) + [TypeScript](https://www.typescriptlang.org) app built with [Vite](https://vite.dev).
 
-## Recommended IDE Setup
+## Requirements
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+- Node.js 24 (see [`.nvmrc`](.nvmrc))
+- pnpm (the exact version is pinned in `package.json` → `packageManager`)
 
-## Need an official Svelte framework?
+```sh
+pnpm install
+pnpm exec playwright install   # browsers for the E2E tests (first time only)
+pnpm dev
+```
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+## Scripts
 
-## Technical considerations
+| Script               | Description                                                                 |
+| -------------------- | --------------------------------------------------------------------------- |
+| `pnpm dev`           | Start the dev server with HMR                                               |
+| `pnpm build`         | Build for production into `dist/`                                           |
+| `pnpm preview`       | Serve the production build locally                                          |
+| `pnpm check`         | Type-check the app (`svelte-check`) and the tooling/E2E code (`tsc`)        |
+| `pnpm lint`          | Lint with ESLint (fails on any warning); `pnpm lint:fix` applies auto-fixes |
+| `pnpm format`        | Format with Prettier; `pnpm format:check` only verifies                     |
+| `pnpm test`          | Run unit and component tests once; `pnpm test:watch` for watch mode         |
+| `pnpm test:coverage` | Run unit and component tests with a coverage report in `coverage/`          |
+| `pnpm test:e2e`      | Build the app and run the Playwright E2E tests against it                   |
 
-**Why use this over SvelteKit?**
+## Project structure
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+```text
+src/
+  lib/              Reusable components and modules, imported via `$lib/...`
+  assets/           Assets imported from code (processed by Vite)
+  App.svelte        Root component
+  main.ts           Entry point
+public/             Static files served as-is from the base path
+e2e/                Playwright E2E tests
+```
 
-This template contains as little as possible to get started with Vite + TypeScript + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
+### Import aliases
 
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
-
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
-
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
-
-**Why include `.vscode/extensions.json`?**
-
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
-
-**Why enable `allowJs` in the TS template?**
-
-While `allowJs: false` would indeed prevent the use of `.js` files in the project, it does not prevent the use of JavaScript syntax in `.svelte` files. In addition, it would force `checkJs: false`, bringing the worst of both worlds: not being able to guarantee the entire codebase is TypeScript, and also having worse typechecking for the existing JavaScript. In addition, there are valid use cases in which a mixed codebase may be relevant.
-
-**Why is HMR not preserving my local component state?**
-
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
-
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
+`$lib/*` maps to `src/lib/*` (the same convention as SvelteKit). Aliases are defined once in the
+`paths` of [`tsconfig.app.json`](tsconfig.app.json) and picked up by Vite and Vitest through
+`resolve.tsconfigPaths`, so add new aliases there only.
 
 ```ts
-// store.ts
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
+import Counter from '$lib/Counter.svelte'
 ```
+
+## TypeScript
+
+- `tsconfig.base.json` holds the shared strictness settings (`strict`, `noUncheckedIndexedAccess`,
+  `exactOptionalPropertyTypes`, `erasableSyntaxOnly`, …).
+- `tsconfig.app.json` covers the browser code in `src/` (including tests).
+- `tsconfig.node.json` covers the Node.js tooling: `*.config.ts`, `svelte.config.js` and `e2e/`.
+
+All Svelte components must use `<script lang="ts">` (enforced by ESLint), and runes mode is enforced
+for project code in [`svelte.config.js`](svelte.config.js).
+
+## Testing
+
+Tests are co-located with the code they cover. Vitest runs two projects, selected by file name:
+
+| Project     | Files                     | Environment | Use for                                     |
+| ----------- | ------------------------- | ----------- | ------------------------------------------- |
+| `unit`      | `src/**/*.test.ts`        | Node.js     | Pure TypeScript logic                       |
+| `component` | `src/**/*.svelte.test.ts` | jsdom       | Components (Testing Library) and rune logic |
+
+Component tests use [Testing Library](https://testing-library.com/docs/svelte-testing-library/intro)
+with the [`jest-dom`](https://github.com/testing-library/jest-dom) matchers. Every test must contain
+at least one assertion (`expect.requireAssertions`).
+
+Coverage fails below 80% for lines, functions and statements. Branch coverage is enforced for `.ts`
+modules only, as compiled Svelte templates contain synthetic branches.
+
+E2E tests in `e2e/` run with [Playwright](https://playwright.dev) against the production build in
+Chromium, Firefox and WebKit.
+
+## Git hooks
+
+[Husky](https://typicode.github.io/husky/) installs the hooks on `pnpm install`:
+
+- **pre-commit**: [lint-staged](https://github.com/lint-staged/lint-staged) runs ESLint and Prettier
+  on the staged files.
+- **commit-msg**: [commitlint](https://commitlint.js.org) enforces
+  [Conventional Commits](https://www.conventionalcommits.org) (e.g. `feat: add scoreboard`).
+- **pre-push**: type-checks and runs the unit and component tests.
+
+## CI/CD
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to
+`main`:
+
+1. **quality**: format check, lint and type-check
+2. **unit**: unit and component tests with coverage
+3. **e2e**: Playwright tests in all browsers (the HTML report is uploaded as an artifact)
+4. **deploy** (pushes to `main` only, after all checks pass): builds and deploys to GitHub Pages
+
+To enable deployment, set **Settings → Pages → Build and deployment → Source** to
+**GitHub Actions**. Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml)) opens weekly
+update PRs for npm packages and GitHub Actions.
