@@ -60,5 +60,9 @@ export default defineConfig(
   {
     files: ['e2e/**/*.ts'],
     extends: [playwright.configs['flat/recommended']],
+    rules: {
+      // Allows skipping tests of browser-specific APIs, e.g. `test.skip(({ browserName }) => …)`.
+      'playwright/no-skipped-test': ['warn', { allowConditional: true }],
+    },
   },
 )

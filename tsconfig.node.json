@@ -9,5 +9,5 @@
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["*.config.ts", "svelte.config.js", "e2e/**/*.ts"]
+  "include": ["*.config.ts", "svelte.config.js"]
 }

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://www.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "nodenext",
+    "types": ["node"]
+  },
+  "include": ["e2e/**/*.ts", "src/lib/files/file-system-access.d.ts"]
+}

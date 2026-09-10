@@ -7,6 +7,8 @@
   --color-muted: light-dark(#9a9aa1, #6e6e76);
   --color-accent: light-dark(#3b6fd8, #7ea6f4);
   --color-selection: light-dark(rgb(59 111 216 / 0.16), rgb(126 166 244 / 0.28));
+  --color-hover: light-dark(rgb(0 0 0 / 0.05), rgb(255 255 255 / 0.07));
+  --color-danger: light-dark(#c42b1c, #ff8a7a);
 
   --font-sans: system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -28,6 +30,9 @@ body {
   margin: 0;
 }
 
+/* Header above an editor that fills the remaining height and scrolls on its own. */
 #app {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100dvh;
 }

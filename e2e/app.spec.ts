@@ -6,7 +6,7 @@ test.describe('editor', () => {
   })
 
   test('is focused and ready for input on load', async ({ page }) => {
-    await expect(page).toHaveTitle('typer')
+    await expect(page).toHaveTitle('Untitled.md — typer')
     await expect(page.getByRole('textbox', { name: 'Document' })).toBeFocused()
   })
 
