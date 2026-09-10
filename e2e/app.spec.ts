@@ -1,20 +1,32 @@
 import { expect, test } from '@playwright/test'
 
-test.describe('home page', () => {
+test.describe('editor', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
   })
 
-  test('renders the app', async ({ page }) => {
+  test('is focused and ready for input on load', async ({ page }) => {
     await expect(page).toHaveTitle('typer')
-    await expect(page.getByRole('heading', { level: 1, name: 'Get started' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Document' })).toBeFocused()
   })
 
-  test('increments the counter when clicked', async ({ page }) => {
-    const counter = page.getByRole('button', { name: /^Count is/ })
+  test('continues Markdown lists on Enter', async ({ page }) => {
+    const lines = page.getByRole('textbox', { name: 'Document' }).locator('.cm-line')
 
-    await expect(counter).toHaveText('Count is 0')
-    await counter.click()
-    await expect(counter).toHaveText('Count is 1')
+    await page.keyboard.type('- first')
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('second')
+
+    await expect(lines).toHaveText(['- first', '- second'])
+  })
+
+  test('undoes edits', async ({ page }) => {
+    const editor = page.getByRole('textbox', { name: 'Document' })
+
+    await page.keyboard.type('draft')
+    await expect(editor).toContainText('draft')
+    await page.keyboard.press('ControlOrMeta+z')
+
+    await expect(editor).not.toContainText('draft')
   })
 })
