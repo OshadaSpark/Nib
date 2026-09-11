@@ -10,6 +10,7 @@ import {
   keymap,
   placeholder,
 } from '@codemirror/view'
+import { livePreview } from './livePreview'
 import { theme } from './theme'
 
 /**
@@ -21,6 +22,7 @@ const markdownSupport = new LanguageSupport(markdownLanguage, [
   // Continues lists and blockquotes on Enter, and removes their markup on Backspace.
   Prec.high(keymap.of(markdownKeymap)),
   pasteURLAsLink,
+  livePreview,
 ])
 
 /** Plain text needs no language extensions. */
