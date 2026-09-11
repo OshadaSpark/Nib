@@ -8,6 +8,7 @@
   --color-accent: light-dark(#3b6fd8, #7ea6f4);
   --color-selection: light-dark(rgb(59 111 216 / 0.16), rgb(126 166 244 / 0.28));
   --color-hover: light-dark(rgb(0 0 0 / 0.05), rgb(255 255 255 / 0.07));
+  --color-code-bg: light-dark(rgb(0 0 0 / 0.05), rgb(255 255 255 / 0.08));
   --color-danger: light-dark(#c42b1c, #ff8a7a);
 
   --font-sans: system-ui, sans-serif;

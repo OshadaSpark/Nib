@@ -63,6 +63,10 @@ The editor is [CodeMirror 6](https://codemirror.net), configured in
   `basicSetup`, which is aimed at code editing (line numbers, fold gutters, …).
 - `extensions.ts` also picks the language by file extension: Markdown for `.md` and `.markdown`,
   plain text for everything else.
+- `livePreview.ts` renders Markdown in place: it hides the markup of headings, emphasis,
+  strikethrough, inline code, links, escapes and entities, except in the element the selection
+  touches, so the markup can still be edited. It only decorates the visible part of the document.
+  Plain-text files don't load it.
 - `theme.ts` defines the layout and syntax highlighting. Colours come from the custom properties in
   [`src/app.css`](src/app.css), so light and dark mode need no separate themes.
 
@@ -88,6 +92,9 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
 | ⌘/Ctrl+O       | Open    |
 | ⌘/Ctrl+S       | Save    |
 | ⌘/Ctrl+Shift+S | Save as |
+
+In Markdown files, ⌘/Ctrl+click on a link or Alt+Enter with the cursor in it opens the link in a
+new tab. Only web and email links open; relative links will resolve once folders are supported.
 
 ## TypeScript
 

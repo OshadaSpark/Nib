@@ -40,12 +40,27 @@ const editorTheme = EditorView.theme({
   '.cm-placeholder': {
     color: 'var(--color-muted)',
   },
+  // Rendered Markdown, from the live preview.
+  '.cm-link': {
+    textDecoration: 'underline',
+    textDecorationColor: 'color-mix(in srgb, currentColor 40%, transparent)',
+    textUnderlineOffset: '0.2em',
+  },
+  '.cm-inlineCode': {
+    paddingInline: '0.2em',
+    borderRadius: '0.25em',
+    backgroundColor: 'var(--color-code-bg)',
+    // Rounds and pads each line of code that wraps, not only its ends.
+    boxDecorationBreak: 'clone',
+  },
 })
 
 const highlightStyle = HighlightStyle.define([
   { tag: tags.heading1, fontSize: '1.75em', fontWeight: '700' },
   { tag: tags.heading2, fontSize: '1.4em', fontWeight: '700' },
   { tag: tags.heading3, fontSize: '1.2em', fontWeight: '600' },
+  { tag: tags.heading4, fontSize: '1.1em', fontWeight: '600' },
+  { tag: tags.heading6, fontSize: '0.9em', fontWeight: '600' },
   // Parent of all heading levels, so this applies to the levels without a rule of their own.
   { tag: tags.heading, fontWeight: '600' },
   { tag: tags.strong, fontWeight: '700' },
