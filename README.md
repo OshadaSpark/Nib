@@ -63,10 +63,16 @@ The editor is [CodeMirror 6](https://codemirror.net), configured in
   `basicSetup`, which is aimed at code editing (line numbers, fold gutters, …).
 - `extensions.ts` also picks the language by file extension: Markdown for `.md` and `.markdown`,
   plain text for everything else.
-- `livePreview.ts` renders Markdown in place: it hides the markup of headings, emphasis,
-  strikethrough, inline code, links, escapes and entities, except in the element the selection
-  touches, so the markup can still be edited. It only decorates the visible part of the document.
-  Plain-text files don't load it.
+- `markdown/` holds the Markdown support, which plain-text files don't load:
+  - `language.ts` is GitHub Flavored Markdown with its editing keymap. Fenced code blocks are
+    parsed in their own language, from the list in `codeLanguages.ts`. Each language loads on first
+    use, so none of them add to the main bundle.
+  - `livePreview.ts` renders Markdown in place. Markup is hidden, except in the element the
+    selection touches, so it can still be edited. `decorations.ts` covers inline elements, lists,
+    task lists, quotes, rules and code blocks, for the visible part of the document only.
+    `blockWidgets.ts` shows images below their line and renders tables in place of their source.
+  - `links.ts` resolves link targets, including reference links; `widgets.ts` draws bullets,
+    checkboxes, entities, images and tables.
 - `theme.ts` defines the layout and syntax highlighting. Colours come from the custom properties in
   [`src/app.css`](src/app.css), so light and dark mode need no separate themes.
 
@@ -93,8 +99,10 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
 | ⌘/Ctrl+S       | Save    |
 | ⌘/Ctrl+Shift+S | Save as |
 
-In Markdown files, ⌘/Ctrl+click on a link or Alt+Enter with the cursor in it opens the link in a
-new tab. Only web and email links open; relative links will resolve once folders are supported.
+In Markdown files, ⌘/Ctrl+click on a link opens it in a new tab, and clicking a checkbox toggles
+its task. Alt+Enter does either at the cursor. Only web and email links open, and only images with
+web or data URLs show; relative paths will resolve once folders are supported. Clicking a table
+shows its source, with the cursor in the clicked cell.
 
 ## TypeScript
 

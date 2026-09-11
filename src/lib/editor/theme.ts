@@ -1,10 +1,19 @@
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import type { Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { tags } from '@lezer/highlight'
+import { tagHighlighter, tags } from '@lezer/highlight'
 
 /** Maximum width of the text column. */
 const contentWidth = '72ch'
+
+/**
+ * Space on either side of the text column, which centres it. Also valid in elements as wide as a
+ * line, such as block widgets and lines' positioned pseudo-elements, as `100%` resolves the same.
+ */
+const lineInset = `max(1.5rem, (100% - ${contentWidth}) / 2)`
+
+/** Radius of the corners of blocks, such as code blocks, images and tables. */
+const radius = '0.375rem'
 
 // Colours reference the custom properties in `app.css`, which resolve per colour scheme, so a
 // single theme serves both light and dark mode.
@@ -28,7 +37,7 @@ const editorTheme = EditorView.theme({
   '.cm-line': {
     // Centres the text column with padding rather than margins, so the whole width stays clickable.
     // It is set on lines rather than the content, as selections span the line's padding box.
-    paddingInline: `max(1.5rem, (100% - ${contentWidth}) / 2)`,
+    paddingInline: lineInset,
   },
   '.cm-cursor, .cm-dropCursor': {
     borderLeftColor: 'var(--color-accent)',
@@ -49,9 +58,127 @@ const editorTheme = EditorView.theme({
   '.cm-inlineCode': {
     paddingInline: '0.2em',
     borderRadius: '0.25em',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '0.9em',
     backgroundColor: 'var(--color-code-bg)',
     // Rounds and pads each line of code that wraps, not only its ends.
     boxDecorationBreak: 'clone',
+  },
+  '.cm-bullet': {
+    color: 'var(--color-muted)',
+  },
+  '.cm-taskCheckbox': {
+    inlineSize: '1em',
+    blockSize: '1em',
+    margin: '0',
+    verticalAlign: '-0.125em',
+    accentColor: 'var(--color-accent)',
+    cursor: 'pointer',
+  },
+  '.cm-taskDone': {
+    color: 'var(--color-muted)',
+    textDecoration: 'line-through',
+  },
+  // One bar per level of nesting, in the gutter before the quote's text.
+  '.cm-quote': {
+    position: 'relative',
+    paddingInlineStart: `calc(${lineInset} + var(--quote-depth) * 1rem)`,
+  },
+  '.cm-quote::before': {
+    content: '""',
+    position: 'absolute',
+    insetBlock: '0',
+    insetInlineStart: lineInset,
+    inlineSize: 'calc(var(--quote-depth) * 1rem - 0.8125rem)',
+    background:
+      'repeating-linear-gradient(to right, var(--color-border) 0 0.1875rem, transparent 0.1875rem 1rem)',
+  },
+  '.cm-rule': {
+    position: 'relative',
+  },
+  '.cm-rule::after': {
+    content: '""',
+    position: 'absolute',
+    insetInline: lineInset,
+    insetBlockStart: '50%',
+    borderBlockStart: '1px solid var(--color-border)',
+  },
+  // A background behind each line, slightly wider than the text column. It sits below the
+  // selection, which CodeMirror draws in layers at small negative z-indexes.
+  '.cm-codeBlock': {
+    position: 'relative',
+    // Tokens of code blocks' languages, from `codeHighlighter`.
+    '& .tok-keyword': { color: 'var(--color-syntax-keyword)' },
+    '& .tok-string': { color: 'var(--color-syntax-string)' },
+    '& .tok-literal': { color: 'var(--color-syntax-literal)' },
+    '& .tok-function': { color: 'var(--color-syntax-function)' },
+    '& .tok-type': { color: 'var(--color-syntax-type)' },
+    '& .tok-meta': { color: 'var(--color-muted)' },
+    '& .tok-invalid': { color: 'var(--color-danger)' },
+  },
+  '.cm-codeBlock::before': {
+    content: '""',
+    position: 'absolute',
+    zIndex: '-10',
+    insetBlock: '0',
+    insetInline: `calc(${lineInset} - 0.75rem)`,
+    backgroundColor: 'var(--color-code-bg)',
+  },
+  // Line height rather than font size, which would change the `ch` in the line's inset.
+  '.cm-codeFence': {
+    lineHeight: '1',
+  },
+  '.cm-codeBlock-first::before': {
+    borderStartStartRadius: radius,
+    borderStartEndRadius: radius,
+  },
+  '.cm-codeBlock-last::before': {
+    borderEndStartRadius: radius,
+    borderEndEndRadius: radius,
+  },
+  '.cm-codeText': {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '0.9em',
+  },
+  '.cm-image': {
+    paddingInline: lineInset,
+    paddingBlock: '0.5rem',
+  },
+  '.cm-image img': {
+    display: 'block',
+    maxInlineSize: '100%',
+    maxBlockSize: '32rem',
+    borderRadius: radius,
+  },
+  '.cm-table': {
+    paddingInline: lineInset,
+    paddingBlock: '0.5rem',
+    overflowX: 'auto',
+    lineHeight: '1.5',
+    cursor: 'text',
+  },
+  '.cm-table table': {
+    borderCollapse: 'collapse',
+  },
+  '.cm-table th, .cm-table td': {
+    paddingBlock: '0.375rem',
+    paddingInline: '0.75rem',
+    border: '1px solid var(--color-border)',
+    verticalAlign: 'top',
+  },
+  '.cm-table th': {
+    fontWeight: '600',
+    backgroundColor: 'var(--color-code-bg)',
+  },
+  '.cm-table code': {
+    paddingInline: '0.2em',
+    borderRadius: '0.25em',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '0.9em',
+    backgroundColor: 'var(--color-code-bg)',
+  },
+  '.cm-table img': {
+    maxInlineSize: '100%',
   },
 })
 
@@ -67,7 +194,6 @@ const highlightStyle = HighlightStyle.define([
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
   { tag: [tags.link, tags.url], color: 'var(--color-accent)' },
-  { tag: tags.monospace, fontFamily: 'var(--font-mono)', fontSize: '0.9em' },
   // Markup characters (`#`, `*`, `>`, …) and other secondary syntax recede into the background.
   {
     tag: [
@@ -81,5 +207,26 @@ const highlightStyle = HighlightStyle.define([
   },
 ])
 
-/** Editor appearance: layout, chrome and syntax highlighting. */
-export const theme: Extension = [editorTheme, syntaxHighlighting(highlightStyle)]
+/**
+ * Classes for the tokens of code blocks' languages. They are only coloured in code blocks (see
+ * `.cm-codeBlock` above), so Markdown tokens sharing a tag, such as link titles, stay as they are.
+ */
+const codeHighlighter = tagHighlighter([
+  { tag: tags.keyword, class: 'tok-keyword' },
+  { tag: [tags.string, tags.regexp], class: 'tok-string' },
+  { tag: [tags.number, tags.bool, tags.null, tags.atom], class: 'tok-literal' },
+  {
+    tag: [tags.function(tags.variableName), tags.function(tags.propertyName)],
+    class: 'tok-function',
+  },
+  { tag: [tags.typeName, tags.className, tags.namespace, tags.tagName], class: 'tok-type' },
+  { tag: tags.meta, class: 'tok-meta' },
+  { tag: tags.invalid, class: 'tok-invalid' },
+])
+
+/** Editor appearance: layout, chrome, rendered Markdown and syntax highlighting. */
+export const theme: Extension = [
+  editorTheme,
+  syntaxHighlighting(highlightStyle),
+  syntaxHighlighting(codeHighlighter),
+]

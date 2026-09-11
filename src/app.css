@@ -9,6 +9,12 @@
   --color-selection: light-dark(rgb(59 111 216 / 0.16), rgb(126 166 244 / 0.28));
   --color-hover: light-dark(rgb(0 0 0 / 0.05), rgb(255 255 255 / 0.07));
   --color-code-bg: light-dark(rgb(0 0 0 / 0.05), rgb(255 255 255 / 0.08));
+  --color-border: light-dark(#e2e2e5, #38383d);
+  --color-syntax-keyword: light-dark(#9a3fb3, #cf9cf2);
+  --color-syntax-string: light-dark(#2e7d32, #9ccc8a);
+  --color-syntax-literal: light-dark(#a15c00, #e5b567);
+  --color-syntax-function: var(--color-accent);
+  --color-syntax-type: light-dark(#0b7a83, #6fc3c9);
   --color-danger: light-dark(#c42b1c, #ff8a7a);
 
   --font-sans: system-ui, sans-serif;
