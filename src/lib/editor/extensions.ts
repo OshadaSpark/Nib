@@ -1,7 +1,5 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import { markdownKeymap, markdownLanguage, pasteURLAsLink } from '@codemirror/lang-markdown'
-import { LanguageSupport } from '@codemirror/language'
-import { Prec, type Extension } from '@codemirror/state'
+import type { Extension } from '@codemirror/state'
 import {
   drawSelection,
   dropCursor,
@@ -10,20 +8,8 @@ import {
   keymap,
   placeholder,
 } from '@codemirror/view'
-import { livePreview } from './livePreview'
+import { markdownSupport } from './markdown/language'
 import { theme } from './theme'
-
-/**
- * GitHub Flavored Markdown support, composed from the parts of `markdown()` that the editor uses.
- * `markdown()` itself always bundles the HTML, CSS and JavaScript languages to parse embedded HTML,
- * which adds about 50% to the bundle size.
- */
-const markdownSupport = new LanguageSupport(markdownLanguage, [
-  // Continues lists and blockquotes on Enter, and removes their markup on Backspace.
-  Prec.high(keymap.of(markdownKeymap)),
-  pasteURLAsLink,
-  livePreview,
-])
 
 /** Plain text needs no language extensions. */
 const plainText: Extension = []

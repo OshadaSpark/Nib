@@ -17,7 +17,8 @@ test.describe('editor', () => {
     await page.keyboard.press('Enter')
     await page.keyboard.type('second')
 
-    await expect(lines).toHaveText(['- first', '- second'])
+    // The markers render as bullets, as the cursor is past them.
+    await expect(lines).toHaveText(['• first', '• second'])
   })
 
   test('undoes edits', async ({ page }) => {
