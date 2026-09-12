@@ -10,5 +10,7 @@
       "$lib/*": ["./src/lib/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.svelte", "vitest.setup.ts"]
+  "include": ["src/**/*.ts", "src/**/*.svelte", "vitest.setup.ts"],
+  // The service worker has a worker's globals rather than a page's: see tsconfig.worker.json.
+  "exclude": ["src/serviceWorker.ts"]
 }

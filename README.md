@@ -34,11 +34,13 @@ pnpm dev
 ```text
 src/
   lib/              Reusable components and modules, imported via `$lib/...`
+    dialog/         The confirmation dialog
     editor/         The CodeMirror editor component, its extensions and theme
-    files/          Opening and saving local files, and the state of the open file
+    files/          Opening and saving local files and folders, and the state of the open files
   App.svelte        Root component
-  main.ts           Entry point
-public/             Static files served as-is from the base path
+  main.ts           Entry point, which also registers the service worker
+  serviceWorker.ts  The service worker, for working offline
+public/             Static files served as-is from the base path: icons and the app manifest
 e2e/                Playwright E2E tests
 ```
 
@@ -138,6 +140,20 @@ URLs, and from relative paths in an open folder. Relative paths start from the f
 from the folder if they start with `/`. Clicking a table shows its source, with the cursor in the
 clicked cell.
 
+## Installable app
+
+The app works offline and can be installed, from the browser's address bar in Chromium or with Add
+to Home Screen on phones:
+
+- [`public/manifest.webmanifest`](public/manifest.webmanifest) describes the app and its icons. The
+  icons are rendered from [`public/favicon.svg`](public/favicon.svg).
+- [`src/serviceWorker.ts`](src/serviceWorker.ts) caches the whole build when it installs, then
+  serves the app from that cache. A small plugin in [`vite.config.ts`](vite.config.ts) builds it
+  into `sw.js`, with the list of files to cache and a version that changes with them. A new version
+  takes over once every tab of the old one has closed.
+
+The service worker is only registered in production builds (`pnpm build` and `pnpm preview`).
+
 ## TypeScript
 
 - `tsconfig.base.json` holds the shared strictness settings (`strict`, `noUncheckedIndexedAccess`,
@@ -145,6 +161,8 @@ clicked cell.
 - `tsconfig.app.json` covers the browser code in `src/` (including tests).
 - `tsconfig.node.json` covers the Node.js tooling: `*.config.ts` and `svelte.config.js`.
 - `tsconfig.e2e.json` covers the E2E tests in `e2e/`, with DOM types for code that runs in the page.
+- `tsconfig.worker.json` covers the service worker, which has a worker's globals rather than a
+  page's.
 
 All Svelte components must use `<script lang="ts">` (enforced by ESLint), and runes mode is enforced
 for project code in [`svelte.config.js`](svelte.config.js).
