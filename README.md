@@ -77,6 +77,9 @@ The editor is [CodeMirror 6](https://codemirror.net), configured in
     checkboxes, entities, images and tables.
   - `formatting.ts` toggles bold, italic and links on the selection (⌘/Ctrl+B, I and K). Inside
     formatted text, the same shortcut removes it.
+- `count.ts` counts words and characters, which the header shows for the document or the
+  selection. Counts are cached per node of the document's tree, so after an edit only the changed
+  nodes are counted again.
 - `theme.ts` defines the layout and syntax highlighting. Colours come from the custom properties in
   [`src/app.css`](src/app.css), so light and dark mode need no separate themes.
 

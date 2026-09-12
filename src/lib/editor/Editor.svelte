@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { Compartment, EditorState, Text, type Extension } from '@codemirror/state'
+  import {
+    Compartment,
+    EditorState,
+    Text,
+    type EditorSelection,
+    type Extension,
+  } from '@codemirror/state'
   import { EditorView } from '@codemirror/view'
   import { untrack } from 'svelte'
   import type { Attachment } from 'svelte/attachments'
@@ -12,9 +18,11 @@
     language?: Extension
     /** Called with the new document after every change. */
     onchange?: (doc: Text) => void
+    /** Called with the selection when the editor is created and whenever the selection changes. */
+    onselect?: (selection: EditorSelection) => void
   }
 
-  const { doc = Text.empty, language = [], onchange }: Props = $props()
+  const { doc = Text.empty, language = [], onchange, onselect }: Props = $props()
 
   const languageCompartment = new Compartment()
 
@@ -28,11 +36,13 @@
           languageCompartment.of(language),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onchange?.(update.state.doc)
+            if (update.selectionSet) onselect?.(update.state.selection)
           }),
         ],
       }),
     )
     const view = new EditorView({ state, parent })
+    untrack(() => onselect?.(state.selection))
     view.focus()
 
     $effect(() => {
