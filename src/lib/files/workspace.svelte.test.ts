@@ -113,12 +113,12 @@ describe('Workspace', () => {
     })
   })
 
-  describe('openDropped', () => {
+  describe('openWith', () => {
     it('opens the dropped file, after asking to discard unsaved changes', async () => {
       const notes = handle('notes.md')
       type(workspace, 'unsaved')
 
-      await workspace.openDropped(() => Promise.resolve(opened('notes.md', 'dropped', notes)))
+      await workspace.openWith(() => Promise.resolve(opened('notes.md', 'dropped', notes)))
 
       expect(confirm).toHaveBeenCalledOnce()
       expect(workspace.file.content.toString()).toBe('dropped')
@@ -126,7 +126,7 @@ describe('Workspace', () => {
     })
 
     it('reports files that can’t be read', async () => {
-      await workspace.openDropped(() => Promise.reject(new DOMException('Gone', 'NotFoundError')))
+      await workspace.openWith(() => Promise.reject(new DOMException('Gone', 'NotFoundError')))
 
       expect(workspace.error).toBe('Couldn’t open the file.')
     })

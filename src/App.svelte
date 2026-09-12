@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { EditorSelection, Text } from '@codemirror/state'
+  import { onMount } from 'svelte'
   import ConfirmDialog from '$lib/dialog/ConfirmDialog.svelte'
   import { Confirmation } from '$lib/dialog/confirmation.svelte'
   import { countString, countText, type Counts } from '$lib/editor/count'
@@ -8,13 +9,21 @@
   import Editor from '$lib/editor/Editor.svelte'
   import type { EditorSnapshot } from '$lib/editor/snapshot'
   import DropOverlay from '$lib/files/DropOverlay.svelte'
-  import { canOpenFolders, type OpenedFile } from '$lib/files/fileAccess'
+  import { canOpenFolders, readFile, type OpenedFile } from '$lib/files/fileAccess'
   import FileTree from '$lib/files/FileTree.svelte'
   import type { TextFile } from '$lib/files/textFile.svelte'
   import { Workspace } from '$lib/files/workspace.svelte'
 
   const confirmation = new Confirmation()
   const workspace = new Workspace(confirmation.ask)
+
+  // Files opened from the system with the installed app (File Handling API, Chromium). Each launch
+  // gets a window of its own, so this only has the file to open.
+  onMount(() => {
+    window.launchQueue?.setConsumer(({ files: [handle] }) => {
+      if (handle instanceof FileSystemFileHandle) openWith(() => readFile(handle))
+    })
+  })
 
   const title = $derived(`${workspace.file.dirty ? '• ' : ''}${workspace.file.name} — typer`)
 
@@ -93,8 +102,8 @@
   const onfocus = (): void => {
     void workspace.checkDisk()
   }
-  const openDropped = (read: () => Promise<OpenedFile>): void => {
-    void workspace.openDropped(read)
+  const openWith = (read: () => Promise<OpenedFile>): void => {
+    void workspace.openWith(read)
   }
   const save = (): void => {
     void workspace.save()
@@ -205,7 +214,7 @@
   {/key}
 </main>
 
-<DropOverlay ondropfile={openDropped} />
+<DropOverlay ondropfile={openWith} />
 <ConfirmDialog {confirmation} />
 
 <style>

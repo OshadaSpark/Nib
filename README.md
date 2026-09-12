@@ -152,6 +152,10 @@ to Home Screen on phones:
   into `sw.js`, with the list of files to cache and a version that changes with them. A new version
   takes over once every tab of the old one has closed.
 
+Installed in Chromium, the app registers as a handler for `.md`, `.markdown` and `.txt` files (the
+manifest's `file_handlers`), so they can be opened with it from the system, each in its own window.
+It receives them through `window.launchQueue`, with handles, so saving writes back to the file.
+
 The service worker is only registered in production builds (`pnpm build` and `pnpm preview`).
 
 ## TypeScript
