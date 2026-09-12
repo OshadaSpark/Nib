@@ -120,17 +120,17 @@
     align-items: center;
     gap: 0.25rem;
     min-inline-size: 0;
-    padding-block: 0.25rem;
+    padding-block: 0.3125rem;
     /* Indented by depth. */
-    padding-inline: calc(0.5rem + var(--depth) * 1rem) 0.75rem;
-    border-radius: 0;
-    color: var(--color-muted);
+    padding-inline: calc(0.25rem + var(--depth) * 1rem) 0.5rem;
+    color: var(--color-subtle);
     text-align: start;
 
     &:hover {
       background: none;
     }
 
+    /* Inside the row, as the sidebar clips what's beyond it. */
     &:focus-visible {
       outline-offset: -2px;
     }
@@ -147,20 +147,22 @@
   /* Files line up with the names of directories, after their chevron. */
   .file .row,
   .field {
-    padding-inline-start: calc(1.75rem + var(--depth) * 1rem);
+    padding-inline-start: calc(1.5rem + var(--depth) * 1rem);
   }
 
   .file {
     display: flex;
     align-items: center;
     padding-inline-end: 0.25rem;
+    border-radius: 0.375rem;
+    transition: background-color 0.15s;
 
     &:hover {
       background-color: var(--color-hover);
     }
 
     &:has([aria-current='page']) {
-      background-color: var(--color-hover);
+      background-color: var(--color-active);
     }
 
     & [aria-current='page'] {
@@ -170,11 +172,12 @@
 
   .field {
     padding-block: 0.125rem;
-    padding-inline-end: 0.5rem;
+    padding-inline-end: 0.25rem;
   }
 
   /* The chevron, pointing down while the directory is expanded. */
   [aria-expanded] > :global(svg) {
+    color: var(--color-muted);
     transition: rotate 0.15s;
   }
 
@@ -212,7 +215,7 @@
   }
 
   .empty {
-    padding: 0.25rem 1rem;
+    padding: 0.25rem 0.5rem;
     color: var(--color-muted);
   }
 </style>

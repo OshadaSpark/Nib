@@ -48,7 +48,7 @@
 
     & input:checked + span {
       color: var(--color-text);
-      background-color: var(--color-bg);
+      background-color: light-dark(#fff, rgb(255 255 255 / 0.12));
       box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
     }
 

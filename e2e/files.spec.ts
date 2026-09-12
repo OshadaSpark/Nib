@@ -3,6 +3,12 @@ import { expect, test, type Page } from '@playwright/test'
 
 const lines = (page: Page) => page.getByRole('textbox', { name: 'Document' }).locator('.cm-line')
 
+/** Opens the file menu and runs its command `name`. */
+const runCommand = async (page: Page, name: string) => {
+  await page.getByRole('button', { name: 'File', exact: true }).click()
+  await page.getByRole('button', { name, exact: true }).click()
+}
+
 test.describe('with the File System Access API', () => {
   test.skip(({ browserName }) => browserName !== 'chromium', 'Only Chromium implements the API')
 
@@ -85,7 +91,7 @@ test.describe('with the File System Access API', () => {
     await writeText(page, 'todo.txt', 'milk')
     const files = page.getByRole('navigation', { name: 'Files' })
 
-    await page.getByRole('button', { name: 'Open folder' }).click()
+    await runCommand(page, 'Open folder')
     await files.getByRole('button', { name: 'ideas.md' }).click()
     await expect(lines(page)).toHaveText(['# Ideas'])
     await page.keyboard.press('ControlOrMeta+End')
@@ -114,7 +120,7 @@ test.describe('with the File System Access API', () => {
           () => false,
         )
       }, name)
-    await page.getByRole('button', { name: 'Open folder' }).click()
+    await runCommand(page, 'Open folder')
 
     await files.getByRole('button', { name: 'New file' }).click()
     await page.keyboard.type('plans')
@@ -166,7 +172,7 @@ test.describe('with the File System Access API', () => {
       await dot.close()
     })
 
-    await page.getByRole('button', { name: 'Open folder' }).click()
+    await runCommand(page, 'Open folder')
     await page
       .getByRole('navigation', { name: 'Files' })
       .getByRole('button', { name: 'index.md' })
@@ -183,7 +189,7 @@ test.describe('with the File System Access API', () => {
 
   test('asks where to save a new file', async ({ page }) => {
     await page.keyboard.type('# Draft')
-    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await runCommand(page, 'Save')
 
     await expect(page).toHaveTitle('saved.md — typer')
     expect(await readText(page, 'saved.md')).toBe('# Draft')
@@ -201,13 +207,14 @@ test.describe('without the File System Access API', () => {
   })
 
   test('doesn’t offer to open folders', async ({ page }) => {
+    await page.getByRole('button', { name: 'File', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Open', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Open folder' })).toBeHidden()
   })
 
   const openFile = async (page: Page, name: string, text: string) => {
     const fileChooser = page.waitForEvent('filechooser')
-    await page.getByRole('button', { name: 'Open' }).click()
+    await runCommand(page, 'Open')
     await (await fileChooser).setFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(text) })
     await expect(page.getByText(name)).toBeVisible()
   }
@@ -240,7 +247,7 @@ test.describe('without the File System Access API', () => {
 
   test('refuses files that aren’t UTF-8 text', async ({ page }) => {
     const fileChooser = page.waitForEvent('filechooser')
-    await page.getByRole('button', { name: 'Open' }).click()
+    await runCommand(page, 'Open')
     await (
       await fileChooser
     ).setFiles({ name: 'latin1.txt', mimeType: 'text/plain', buffer: Buffer.from([0x63, 0xe9]) })

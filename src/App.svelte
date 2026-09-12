@@ -8,12 +8,14 @@
   import { languageFor } from '$lib/editor/extensions'
   import { localFiles } from '$lib/editor/markdown/links'
   import type { EditorSnapshot } from '$lib/editor/snapshot'
+  import WordCount from '$lib/editor/WordCount.svelte'
   import DropOverlay from '$lib/files/DropOverlay.svelte'
   import { readFile, type OpenedFile } from '$lib/files/fileAccess'
   import FileTree from '$lib/files/FileTree.svelte'
   import type { TextFile } from '$lib/files/textFile.svelte'
   import { Workspace } from '$lib/files/workspace.svelte'
   import { Preferences } from '$lib/preferences/preferences.svelte'
+  import Icon from '$lib/ui/Icon.svelte'
   import Header from './Header.svelte'
 
   const confirmation = new Confirmation()
@@ -50,8 +52,18 @@
   /** The editor's selection, for the word count. */
   let selection = $state.raw<EditorSelection | null>(null)
 
+  /**
+   * Whether the user is writing, which fades the header and footer until the pointer moves or
+   * touches the page.
+   */
+  let writing = $state(false)
+
   const onchange = (doc: Text): void => {
     workspace.file.content = doc
+    writing = true
+  }
+  const stopWriting = (): void => {
+    writing = false
   }
   const onselect = (value: EditorSelection): void => {
     selection = value
@@ -99,6 +111,10 @@
     void workspace.openWith(read)
   }
 
+  const dismissError = (): void => {
+    workspace.error = null
+  }
+
   /** Coming back to the page, for example from another app, is when the file may have changed. */
   const onfocus = (): void => {
     void workspace.checkDisk()
@@ -115,68 +131,155 @@
   <meta name="theme-color" content={themeColor} />
 </svelte:head>
 
-<svelte:window {onbeforeunload} {onfocus} />
+<svelte:window {onbeforeunload} {onfocus} onpointermove={stopWriting} onpointerdown={stopWriting} />
 
-<Header {workspace} {preferences} {selection} {filesId} bind:filesShown />
+<div class="app" class:writing>
+  <Header {workspace} {preferences} {filesId} bind:filesShown />
 
-{#if workspace.folder && filesShown}
-  <!-- On narrow screens, where the files cover the editor, a click beside them closes them. -->
-  <button type="button" class="scrim" tabindex="-1" aria-label="Close files" onclick={closeFiles}
-  ></button>
-  <aside id={filesId}>
-    <FileTree
-      folder={workspace.folder}
-      current={workspace.file.path}
-      {isDirty}
-      onopen={openPath}
-      oncreate={createFile}
-      onrename={renameFile}
-      ondelete={deleteFile}
-    />
-  </aside>
-{/if}
+  {#if workspace.folder && filesShown}
+    <!-- On narrow screens, where the files cover the editor, a click beside them closes them. -->
+    <button type="button" class="scrim" tabindex="-1" aria-label="Close files" onclick={closeFiles}
+    ></button>
+    <aside id={filesId}>
+      <FileTree
+        folder={workspace.folder}
+        current={workspace.file.path}
+        {isDirty}
+        onopen={openPath}
+        oncreate={createFile}
+        onrename={renameFile}
+        ondelete={deleteFile}
+      />
+    </aside>
+  {/if}
 
-<main>
-  <!-- Another file gets another editor, with its own state such as undo history, restored from
-       its snapshot if it was shown before. A file reloaded from disk keeps its editor, which takes
-       over the new content. -->
-  {#key workspace.file}
-    <Editor
-      doc={workspace.file.loaded}
-      snapshot={workspace.file.snapshot}
-      onleave={keepSnapshot(workspace.file)}
-      language={languageFor(workspace.file.name, preferences.livePreview)}
-      extensions={folderFiles}
-      appearance={preferences.appearance}
-      {onchange}
-      {onselect}
-    />
-  {/key}
-</main>
+  <main>
+    <!-- Another file gets another editor, with its own state such as undo history, restored from
+         its snapshot if it was shown before. A file reloaded from disk keeps its editor, which
+         takes over the new content. -->
+    {#key workspace.file}
+      <Editor
+        doc={workspace.file.loaded}
+        snapshot={workspace.file.snapshot}
+        onleave={keepSnapshot(workspace.file)}
+        language={languageFor(workspace.file.name, preferences.livePreview)}
+        extensions={folderFiles}
+        appearance={preferences.appearance}
+        {onchange}
+        {onselect}
+      />
+    {/key}
+    {#if workspace.error}
+      <div class="error">
+        <p role="alert">{workspace.error}</p>
+        <button type="button" class="icon-button" aria-label="Dismiss" onclick={dismissError}>
+          <Icon name="close" size="0.875rem" />
+        </button>
+      </div>
+    {/if}
+  </main>
+
+  <footer>
+    <WordCount doc={workspace.file.content} {selection} />
+  </footer>
+</div>
 
 <DropOverlay ondropfile={openWith} />
 <ConfirmDialog {confirmation} />
 
 <style>
+  /* The file tree beside the header, editor and footer, when a folder is open. */
+  .app {
+    display: grid;
+    grid-template:
+      'sidebar header' auto
+      'sidebar main' minmax(0, 1fr)
+      'sidebar footer' auto
+      / auto minmax(0, 1fr);
+    block-size: 100dvh;
+
+    /* Out of the way while writing, back when the pointer moves or the keyboard reaches them. */
+    & > :global(header),
+    & > footer {
+      transition: opacity 0.4s;
+    }
+
+    &.writing > :global(header:not(:focus-within)),
+    &.writing > footer {
+      opacity: 0;
+    }
+  }
+
   aside {
     grid-area: sidebar;
     inline-size: 16rem;
     overflow-y: auto;
     border-inline-end: 1px solid var(--color-border);
-    background-color: var(--color-bg);
+    background-color: var(--color-chrome);
 
-    /* Over the editor on narrow screens, with room to see there's more beyond. */
+    /* A drawer over the page on narrow screens, with room to see there's more beyond. */
     @media (width < 48rem) {
-      grid-area: main;
+      position: fixed;
+      inset-block: 0;
+      inset-inline-start: 0;
       z-index: 5;
       inline-size: min(18rem, 85%);
-      box-shadow: 0 0 2rem rgb(0 0 0 / 0.2);
+      border: none;
+      box-shadow: var(--shadow-raised);
+      transition: translate 0.2s ease-out;
+
+      @starting-style {
+        translate: -100% 0;
+      }
     }
   }
 
   main {
     grid-area: main;
+    position: relative;
     min-inline-size: 0;
+  }
+
+  footer {
+    grid-area: footer;
+    display: flex;
+    justify-content: end;
+    padding-block: 0.25rem 0.5rem;
+    padding-inline: 1rem;
+    font-size: 0.8125rem;
+    color: var(--color-muted);
+  }
+
+  /* Floats over the bottom of the editor until dismissed or the next action. */
+  .error {
+    position: absolute;
+    inset-block-end: 1rem;
+    inset-inline: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    inline-size: fit-content;
+    max-inline-size: calc(100% - 2rem);
+    margin-inline: auto;
+    padding-block: 0.25rem;
+    padding-inline: 1rem 0.25rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--color-danger);
+    background: var(--color-raised);
+    box-shadow: var(--shadow-raised);
+    transition:
+      opacity 0.2s,
+      translate 0.2s;
+
+    @starting-style {
+      opacity: 0;
+      translate: 0 0.5rem;
+    }
+
+    & p {
+      margin: 0;
+    }
   }
 
   .scrim {
@@ -184,13 +287,19 @@
 
     @media (width < 48rem) {
       display: block;
-      grid-area: main;
+      position: fixed;
+      inset: 0;
       z-index: 4;
       border-radius: 0;
-      background-color: rgb(0 0 0 / 0.15);
+      background-color: rgb(0 0 0 / 0.25);
+      transition: opacity 0.2s;
 
       &:hover {
-        background-color: rgb(0 0 0 / 0.15);
+        background-color: rgb(0 0 0 / 0.25);
+      }
+
+      @starting-style {
+        opacity: 0;
       }
     }
   }

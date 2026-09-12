@@ -24,6 +24,9 @@ const type = (text: string): void => {
   view?.dispatch({ changes: { from: view.state.doc.length, insert: text } })
 }
 
+/** A command in the file menu, hidden as jsdom has no popovers to open. */
+const command = (name: string): HTMLElement => screen.getByRole('button', { name, hidden: true })
+
 /** Waits for the editor to show `text`. */
 const shows = (text: string): Promise<void> =>
   vi.waitFor(() => {
@@ -91,22 +94,22 @@ describe('App', () => {
     expect(saveFile).toHaveBeenCalledWith('text', 'Untitled.md', null, null)
   })
 
-  it('saves from the Save button', async () => {
+  it('saves from the file menu', async () => {
     const user = userEvent.setup()
     render(App)
 
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await user.click(command('Save'))
 
     expect(saveFile).toHaveBeenCalledOnce()
   })
 
-  it('opens a file on Ctrl+O and from the Open button', async () => {
+  it('opens a file on Ctrl+O and from the file menu', async () => {
     const user = userEvent.setup()
     vi.mocked(openFile).mockResolvedValue(opened('notes.txt', 'hi'))
     render(App)
 
     await user.keyboard('{Control>}o{/Control}')
-    await user.click(screen.getByRole('button', { name: 'Open' }))
+    await user.click(command('Open'))
 
     expect(openFile).toHaveBeenCalledTimes(2)
     expect(await screen.findByText('notes.txt')).toBeInTheDocument()
@@ -117,12 +120,12 @@ describe('App', () => {
       'keyboard shortcut',
       (user: UserEvent) => user.keyboard('{Control>}{Shift>}s{/Shift}{/Control}'),
     ],
-    ['button', (user: UserEvent) => user.click(screen.getByRole('button', { name: 'Save as' }))],
+    ['file menu', (user: UserEvent) => user.click(command('Save as'))],
   ])('saves as a new file from the %s', async (_, saveAs) => {
     const user = userEvent.setup()
     vi.mocked(openFile).mockResolvedValue(opened('notes.md', '', handle('notes.md')))
     render(App)
-    await user.click(screen.getByRole('button', { name: 'Open' }))
+    await user.click(command('Open'))
     await screen.findByText('notes.md')
 
     await saveAs(user)
@@ -133,7 +136,9 @@ describe('App', () => {
   it('offers to open folders only where the browser can', () => {
     render(App)
 
-    expect(screen.queryByRole('button', { name: 'Open folder' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Open folder', hidden: true }),
+    ).not.toBeInTheDocument()
   })
 
   it('opens a folder, and switches between its files, keeping their edits', async () => {
@@ -149,7 +154,7 @@ describe('App', () => {
     vi.mocked(lastModified).mockImplementation(async (file) => (await file.getFile()).lastModified)
     render(App)
 
-    await user.click(screen.getByRole('button', { name: 'Open folder' }))
+    await user.click(command('Open folder'))
     const files = await screen.findByRole('navigation', { name: 'Files' })
     await user.click(within(files).getByRole('button', { name: 'journal' }))
     await user.click(await within(files).findByRole('button', { name: 'today.md' }))
@@ -178,7 +183,7 @@ describe('App', () => {
     vi.mocked(openFolder).mockResolvedValue(notes)
     vi.mocked(lastModified).mockImplementation(async (file) => (await file.getFile()).lastModified)
     render(App)
-    await user.click(screen.getByRole('button', { name: 'Open folder' }))
+    await user.click(command('Open folder'))
     const files = await screen.findByRole('navigation', { name: 'Files' })
 
     await user.click(within(files).getByRole('button', { name: 'New file' }))
@@ -260,27 +265,31 @@ describe('App', () => {
     expect(textbox).toHaveTextContent('Some **bold**')
   })
 
-  it('starts a new file from the New button', async () => {
+  it('starts a new file from the file menu', async () => {
     const user = userEvent.setup()
     vi.mocked(openFile).mockResolvedValue(opened('notes.md', 'hi'))
     render(App)
-    await user.click(screen.getByRole('button', { name: 'Open' }))
+    await user.click(command('Open'))
     await screen.findByText('notes.md')
 
-    await user.click(screen.getByRole('button', { name: 'New' }))
+    await user.click(command('New'))
 
     expect(screen.getByText('Untitled.md')).toBeInTheDocument()
   })
 
-  it('shows errors', async () => {
+  it('shows errors until dismissed', async () => {
     const user = userEvent.setup()
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     vi.mocked(saveFile).mockRejectedValue(new Error('Disk full'))
     render(App)
 
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await user.click(command('Save'))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save Untitled.md.')
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('warns before leaving the page with unsaved changes', () => {

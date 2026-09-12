@@ -75,7 +75,13 @@
 <nav aria-label="Files">
   <div class="heading">
     <h2 class="truncate" title={folder.name}>{folder.name}</h2>
-    <button type="button" aria-label="New file" title="New file" onclick={startCreate}>
+    <button
+      type="button"
+      class="icon-button"
+      aria-label="New file"
+      title="New file"
+      onclick={startCreate}
+    >
       <Icon name="plus" />
     </button>
   </div>
@@ -84,15 +90,26 @@
 
 <style>
   nav {
-    padding-block: 0.5rem 1rem;
+    padding-block-end: 1rem;
     font-size: 0.875rem;
+
+    /* Rows are inset from the sidebar's edges. */
+    & > :global(ul) {
+      padding-inline: 0.5rem;
+    }
   }
 
+  /* As tall as the header beside it, and kept in view as the tree scrolls. */
   .heading {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
     display: flex;
     align-items: center;
-    padding-block: 0 0.25rem;
-    padding-inline: 1rem 0.25rem;
+    gap: 0.5rem;
+    block-size: var(--bar-height);
+    padding-inline: 1rem 0.5rem;
+    background-color: var(--color-chrome);
   }
 
   h2 {
@@ -100,10 +117,5 @@
     margin: 0;
     font-size: inherit;
     font-weight: 600;
-  }
-
-  button {
-    padding: 0.375rem;
-    color: var(--color-muted);
   }
 </style>

@@ -50,17 +50,20 @@
 <style>
   dialog {
     inline-size: min(24rem, 100% - 2rem);
-    padding: 1.25rem;
-    border: 1px solid var(--color-border);
-    border-radius: 0.75rem;
+    padding: 1.5rem;
+    border: none;
+    border-radius: 1rem;
     font-size: 0.875rem;
     color: var(--color-text);
-    background: var(--color-bg);
+    background: var(--color-raised);
     box-shadow: var(--shadow-raised);
-    transition: opacity 0.15s;
+    transition:
+      opacity 0.15s,
+      scale 0.15s;
 
     @starting-style {
       opacity: 0;
+      scale: 0.97;
     }
 
     &[open] {
@@ -71,7 +74,7 @@
     }
 
     &::backdrop {
-      background: rgb(0 0 0 / 0.3);
+      background: rgb(0 0 0 / 0.25);
     }
   }
 
@@ -87,7 +90,18 @@
   }
 
   p {
-    margin-block-end: 0.75rem;
+    margin-block-end: 1rem;
+    color: var(--color-subtle);
+  }
+
+  button {
+    padding: 0.375rem 0.875rem;
+    font-weight: 500;
+    background-color: var(--color-hover);
+
+    &:hover {
+      background-color: var(--color-active);
+    }
   }
 
   button:first-of-type {
