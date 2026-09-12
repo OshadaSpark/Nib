@@ -12,12 +12,14 @@ import {
   drawSelection,
   dropCursor,
   EditorView,
+  highlightActiveLineGutter,
   highlightSpecialChars,
   keymap,
+  lineNumbers,
   placeholder,
 } from '@codemirror/view'
 import { markdownSourceSupport, markdownSupport } from './markdown/language'
-import { theme } from './theme'
+import { appearanceTheme, theme, type Appearance } from './theme'
 
 /** Plain text needs no language extensions. */
 const plainText: Extension = []
@@ -30,6 +32,23 @@ export const languageFor = (fileName: string, livePreview = true): Extension => 
   if (!isMarkdownName(fileName)) return plainText
   return livePreview ? markdownSupport : markdownSourceSupport
 }
+
+/** Line numbers, with the cursor's highlighted. The class makes room for them (see `theme.ts`). */
+const numberedLines: Extension = [
+  lineNumbers(),
+  highlightActiveLineGutter(),
+  EditorView.editorAttributes.of({ class: 'cm-numbered' }),
+]
+
+const spellchecked = EditorView.contentAttributes.of({ spellcheck: 'true' })
+const notSpellchecked = EditorView.contentAttributes.of({ spellcheck: 'false' })
+
+/** The extensions that show the text as `appearance` has it. */
+export const appearanceExtensions = (appearance: Appearance): Extension => [
+  appearanceTheme(appearance),
+  appearance.lineNumbers ? numberedLines : [],
+  appearance.spellcheck ? spellchecked : notSpellchecked,
+]
 
 /** Find and replace, in a panel above the text. */
 const findAndReplace: Extension = [
@@ -57,8 +76,8 @@ const findAndReplace: Extension = [
 
 /**
  * The editor's extensions, apart from the language: a small, hand-picked alternative to
- * CodeMirror's `basicSetup`, which targets code editing (line numbers, fold gutters, …) rather than
- * writing prose.
+ * CodeMirror's `basicSetup`, which targets code editing (fold gutters, bracket matching, …) rather
+ * than writing prose. Line numbers are optional, with the appearance.
  */
 export const editorExtensions: Extension = [
   history(),
@@ -66,7 +85,7 @@ export const editorExtensions: Extension = [
   dropCursor(),
   highlightSpecialChars(),
   EditorView.lineWrapping,
-  EditorView.contentAttributes.of({ 'aria-label': 'Document', spellcheck: 'true' }),
+  EditorView.contentAttributes.of({ 'aria-label': 'Document' }),
   placeholder('Start writing…'),
   // Tab indents instead of moving focus; press Escape then Tab to leave the editor with the keyboard.
   keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),

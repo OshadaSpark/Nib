@@ -69,6 +69,15 @@ describe('TextFile', () => {
     expect(file.content.toString()).toBe('# Notes')
     expect(file.serialize()).toBe('\uFEFF# Notes')
   })
+
+  it('tells its line endings and whether it has a byte-order mark', () => {
+    const file = new TextFile('notes.md', 'a\nb')
+    expect([file.crlf, file.byteOrderMark]).toEqual([false, false])
+
+    file.reload('\uFEFFa\r\nb', 1)
+
+    expect([file.crlf, file.byteOrderMark]).toEqual([true, true])
+  })
 })
 
 describe('TextFile.reload', () => {

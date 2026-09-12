@@ -3,11 +3,15 @@ import type { Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { tagHighlighter, tags } from '@lezer/highlight'
 
-/** The text's font family, size and column width, as CSS values. */
+/** How the editor shows the text: font family, size and column width as CSS values, and more. */
 export interface Appearance {
   font: string
   size: string
   width: string
+  /** Line numbers in a gutter beside the text column. */
+  lineNumbers: boolean
+  /** Whether the browser marks misspelt words. */
+  spellcheck: boolean
 }
 
 /**
@@ -23,10 +27,21 @@ export const appearanceTheme = ({ font, size, width }: Appearance): Extension =>
 const contentWidth = 'var(--editor-width, 72ch)'
 
 /**
- * Space on either side of the text column, which centres it. Also valid in elements as wide as a
- * line, such as block widgets and lines' positioned pseudo-elements, as `100%` resolves the same.
+ * Space on either side of the text column, which centres it in an element as wide as the editor,
+ * such as the search panel.
  */
-const lineInset = `max(1.5rem, (100% - ${contentWidth}) / 2)`
+const centringInset = `max(1.5rem, (100% - ${contentWidth}) / 2)`
+
+/**
+ * Space before and after the text column in lines. Also valid in elements as wide as a line, such
+ * as block widgets and lines' positioned pseudo-elements: the variables are resolved where they are
+ * used, where `100%` is the line's width. With line numbers, the gutter takes the space before.
+ */
+const insetStart = 'var(--line-inset-start)'
+const insetEnd = 'var(--line-inset-end)'
+
+/** Space between the line numbers and the text. */
+const gutterGap = '1rem'
 
 /** Radius of the corners of blocks, such as code blocks, images and tables. */
 const radius = '0.375rem'
@@ -43,16 +58,48 @@ const codeSpan = {
 }
 
 /** Block widgets, which span the line and align their content with the text column. */
-const blockWidget = { paddingInline: lineInset, paddingBlock: '0.5rem' }
+const blockWidget = {
+  paddingInlineStart: insetStart,
+  paddingInlineEnd: insetEnd,
+  paddingBlock: '0.5rem',
+}
 
 // Colours reference the custom properties in `app.css`, which resolve per colour scheme, so a
 // single theme serves both light and dark mode.
 const editorTheme = EditorView.theme({
   '&': {
+    '--line-inset-start': centringInset,
+    '--line-inset-end': centringInset,
     height: '100%',
     fontSize: 'var(--editor-size, 1.0625rem)',
     color: 'var(--color-text)',
     backgroundColor: 'var(--color-bg)',
+  },
+  // The gutter fills the space before the text column, so that the numbers sit beside the text,
+  // which stays where it was. `100%` is the editor's width in the gutter and the line's in lines.
+  '&.cm-numbered': {
+    '--line-inset-start': gutterGap,
+    '--line-inset-end': `max(1.5rem, 100% - ${contentWidth} - ${gutterGap})`,
+  },
+  '.cm-gutters': {
+    inlineSize: `max(2.5rem, (100% - ${contentWidth}) / 2 - ${gutterGap})`,
+    border: 'none',
+    color: 'var(--color-muted)',
+    backgroundColor: 'var(--color-bg)',
+  },
+  '.cm-lineNumbers': {
+    flex: '1',
+  },
+  // Smaller than the text, on its first line's baseline: the line height makes up for the size.
+  '.cm-lineNumbers .cm-gutterElement': {
+    paddingInline: '0',
+    fontSize: '0.8em',
+    lineHeight: 'calc(1.7em / 0.8)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  '.cm-activeLineGutter': {
+    color: 'var(--color-subtle)',
+    backgroundColor: 'transparent',
   },
   '&.cm-focused': {
     outline: 'none',
@@ -67,7 +114,8 @@ const editorTheme = EditorView.theme({
   '.cm-line': {
     // Centres the text column with padding rather than margins, so the whole width stays clickable.
     // It is set on lines rather than the content, as selections span the line's padding box.
-    paddingInline: lineInset,
+    paddingInlineStart: insetStart,
+    paddingInlineEnd: insetEnd,
   },
   '.cm-cursor, .cm-dropCursor': {
     borderLeftColor: 'var(--color-accent)',
@@ -80,7 +128,7 @@ const editorTheme = EditorView.theme({
     color: 'var(--color-muted)',
   },
   // The find and replace panel, aligned with the text column. The panel keeps the text's font and
-  // size, so that `ch` in `lineInset` resolves the same as in lines, and styles its controls instead.
+  // size, so that `ch` in its inset resolves the same as in lines, and styles its controls instead.
   '.cm-panels': {
     color: 'var(--color-muted)',
     backgroundColor: 'var(--color-bg)',
@@ -95,7 +143,7 @@ const editorTheme = EditorView.theme({
     alignItems: 'center',
     gap: '0.375rem',
     paddingBlock: '0.5rem',
-    paddingInline: lineInset,
+    paddingInline: centringInset,
     '& input, & button, & label': {
       margin: '0',
       fontFamily: 'var(--font-sans)',
@@ -191,13 +239,13 @@ const editorTheme = EditorView.theme({
   // One bar per level of nesting, in the gutter before the quote's text.
   '.cm-quote': {
     position: 'relative',
-    paddingInlineStart: `calc(${lineInset} + var(--quote-depth) * 1rem)`,
+    paddingInlineStart: `calc(${insetStart} + var(--quote-depth) * 1rem)`,
   },
   '.cm-quote::before': {
     content: '""',
     position: 'absolute',
     insetBlock: '0',
-    insetInlineStart: lineInset,
+    insetInlineStart: insetStart,
     inlineSize: 'calc(var(--quote-depth) * 1rem - 0.8125rem)',
     background:
       'repeating-linear-gradient(to right, var(--color-border) 0 0.1875rem, transparent 0.1875rem 1rem)',
@@ -208,7 +256,8 @@ const editorTheme = EditorView.theme({
   '.cm-rule::after': {
     content: '""',
     position: 'absolute',
-    insetInline: lineInset,
+    insetInlineStart: insetStart,
+    insetInlineEnd: insetEnd,
     insetBlockStart: '50%',
     borderBlockStart: '1px solid var(--color-border)',
   },
@@ -230,7 +279,8 @@ const editorTheme = EditorView.theme({
     position: 'absolute',
     zIndex: '-10',
     insetBlock: '0',
-    insetInline: `calc(${lineInset} - 0.75rem)`,
+    insetInlineStart: `calc(${insetStart} - 0.75rem)`,
+    insetInlineEnd: `calc(${insetEnd} - 0.75rem)`,
     backgroundColor: 'var(--color-code-bg)',
   },
   // Line height rather than font size, which would change the `ch` in the line's inset.

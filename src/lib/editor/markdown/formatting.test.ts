@@ -1,6 +1,20 @@
 import type { EditorState, StateCommand } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
-import { toggleBold, toggleItalic, toggleLink } from './formatting'
+import {
+  insertCodeBlock,
+  insertRule,
+  insertTable,
+  toggleBold,
+  toggleBulletList,
+  toggleHeading,
+  toggleInlineCode,
+  toggleItalic,
+  toggleLink,
+  toggleOrderedList,
+  toggleQuote,
+  toggleStrikethrough,
+  toggleTaskList,
+} from './formatting'
 import { markdownState } from './testState'
 
 /** Runs `command` on `input` and returns the result, with `‸` marking the new selection. */
@@ -63,5 +77,88 @@ describe('toggleLink', () => {
     ],
   ])('%s', (_, input, expected) => {
     expect(run(toggleLink, input)).toBe(expected)
+  })
+})
+
+describe('toggleStrikethrough', () => {
+  it.each([
+    ['wraps the selection in tildes', 'a ‸word‸', 'a ~~‸word‸~~'],
+    ['removes it around the cursor', '~~wo‸rd~~', 'wo‸rd'],
+  ])('%s', (_, input, expected) => {
+    expect(run(toggleStrikethrough, input)).toBe(expected)
+  })
+})
+
+describe('toggleInlineCode', () => {
+  it.each([
+    ['wraps the selection in backticks', 'run ‸ls‸', 'run `‸ls‸`'],
+    ['removes it around the cursor', '`l‸s`', 'l‸s'],
+  ])('%s', (_, input, expected) => {
+    expect(run(toggleInlineCode, input)).toBe(expected)
+  })
+})
+
+describe('toggleHeading', () => {
+  it.each([
+    ['makes the line a heading, the cursor after its marks', '‸Title', 2, '## ‸Title'],
+    ['keeps the cursor where it was in the text', 'Ti‸tle', 1, '# Ti‸tle'],
+    ['changes the level', '### Ti‸tle', 1, '# Ti‸tle'],
+    ['removes a heading of the same level', '## Ti‸tle', 2, 'Ti‸tle'],
+    ['applies to every selected line with text', '‸a\n\nb‸', 1, '# ‸a\n\n# b‸'],
+  ])('%s', (_, input, level, expected) => {
+    expect(run(toggleHeading(level), input)).toBe(expected)
+  })
+})
+
+describe('toggleQuote', () => {
+  it.each([
+    ['quotes the selected lines', '‸a\nb‸', '> ‸a\n> b‸'],
+    ['unquotes them if all are quoted', '> ‸a\n>b‸', '‸a\nb‸'],
+    ['quotes them all if only some are', '> ‸a\nb‸', '> > ‸a\n> b‸'],
+  ])('%s', (_, input, expected) => {
+    expect(run(toggleQuote, input)).toBe(expected)
+  })
+})
+
+describe('list commands', () => {
+  it.each([
+    ['makes lines a bulleted list', toggleBulletList, '‸a\nb‸', '- ‸a\n- b‸'],
+    ['numbers the lines', toggleOrderedList, '‸a\nb‸', '1. ‸a\n2. b‸'],
+    ['makes lines tasks', toggleTaskList, '‸a‸', '- [ ] ‸a‸'],
+    ['starts an item on an empty line', toggleBulletList, '‸', '- ‸'],
+    ['removes the markers of a list of the kind', toggleBulletList, '* ‸a\n+ b‸', '‸a\nb‸'],
+    ['replaces another kind of list', toggleOrderedList, '- [x] ‸a‸', '1. ‸a‸'],
+    ['keeps the indentation', toggleTaskList, '  - ‸a', '  - [ ] ‸a'],
+    ['removes tasks, done or not', toggleTaskList, '- [x] ‸a\n- [ ] b‸', '‸a\nb‸'],
+  ])('%s', (_, command, input, expected) => {
+    expect(run(command, input)).toBe(expected)
+  })
+})
+
+describe('insertCodeBlock', () => {
+  it.each([
+    ['starts an empty block on an empty line', 'a\n‸', 'a\n```\n‸\n```'],
+    ['puts the selected lines in a block', 'x\n‸a\nb‸', 'x\n```\n‸a\nb‸\n```'],
+    ['puts the cursor’s line in a block', 'co‸de', '```\nco‸de\n```'],
+  ])('%s', (_, input, expected) => {
+    expect(run(insertCodeBlock, input)).toBe(expected)
+  })
+})
+
+describe('insertRule', () => {
+  it.each([
+    ['inserts a rule after a blank line, so the text isn’t a heading', 'te‸xt', 'text\n\n---\n‸'],
+    ['uses an empty line after text', 'text\n‸', 'text\n\n---\n‸'],
+    ['uses an empty line at the start', '‸\nnext', '---\n‸\nnext'],
+  ])('%s', (_, input, expected) => {
+    expect(run(insertRule, input)).toBe(expected)
+  })
+})
+
+describe('insertTable', () => {
+  it('inserts a table after the line, selecting its first heading', () => {
+    expect(run(insertTable, 'te‸xt\nnext')).toBe(
+      'text\n\n| ‸Column‸ | Column |\n| ------ | ------ |\n|        |        |\n\nnext',
+    )
   })
 })

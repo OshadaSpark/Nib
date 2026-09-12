@@ -14,14 +14,39 @@ const storageWith = (saved?: string): Storage => {
 }
 
 describe('Preferences', () => {
-  const defaults = { theme: 'system', font: 'sans', size: 17, width: 'medium', livePreview: true }
+  const defaults = {
+    theme: 'system',
+    font: 'sans',
+    size: 17,
+    width: 'medium',
+    livePreview: true,
+    lineNumbers: false,
+    spellcheck: true,
+    toolbar: true,
+    fadeWhileWriting: true,
+    status: {
+      state: true,
+      cursor: false,
+      lines: true,
+      words: true,
+      characters: true,
+      type: false,
+      lineBreaks: false,
+      encoding: false,
+    },
+  }
 
-  const values = ({ theme, font, size, width, livePreview }: Preferences) => ({
-    theme,
-    font,
-    size,
-    width,
-    livePreview,
+  const values = (preferences: Preferences) => ({
+    theme: preferences.theme,
+    font: preferences.font,
+    size: preferences.size,
+    width: preferences.width,
+    livePreview: preferences.livePreview,
+    lineNumbers: preferences.lineNumbers,
+    spellcheck: preferences.spellcheck,
+    toolbar: preferences.toolbar,
+    fadeWhileWriting: preferences.fadeWhileWriting,
+    status: { ...preferences.status },
   })
 
   it('starts from the defaults', () => {
@@ -30,14 +55,27 @@ describe('Preferences', () => {
   })
 
   it('reads saved preferences', () => {
-    const saved = { theme: 'dark', font: 'serif', size: 20, width: 'wide', livePreview: false }
+    const saved = {
+      theme: 'dark',
+      font: 'serif',
+      size: 20,
+      width: 'wide',
+      livePreview: false,
+      lineNumbers: true,
+      spellcheck: false,
+      toolbar: false,
+      fadeWhileWriting: false,
+      status: { ...defaults.status, state: false, cursor: true },
+    }
 
     expect(values(new Preferences(storageWith(JSON.stringify(saved))))).toEqual(saved)
   })
 
   it.each([
     '{"theme":"sepia","font":"comic","width":"huge"}',
-    '{"theme":1,"size":"20","livePreview":"no"}',
+    '{"theme":1,"size":"20","livePreview":"no","lineNumbers":1}',
+    '{"status":{"words":"yes","bogus":true}}',
+    '{"status":[false]}',
     '{"size":13}',
     '{"size":25}',
     '{"size":17.5}',
@@ -54,9 +92,23 @@ describe('Preferences', () => {
 
     preferences.theme = 'light'
     preferences.size = 14
+    preferences.lineNumbers = true
+    preferences.status.words = false
     preferences.save()
 
-    expect(values(new Preferences(storage))).toEqual({ ...defaults, theme: 'light', size: 14 })
+    expect(values(new Preferences(storage))).toEqual({
+      ...defaults,
+      theme: 'light',
+      size: 14,
+      lineNumbers: true,
+      status: { ...defaults.status, words: false },
+    })
+  })
+
+  it('reads a partial status bar, keeping the defaults for the rest', () => {
+    const preferences = new Preferences(storageWith('{"status":{"cursor":true}}'))
+
+    expect(preferences.status).toEqual({ ...defaults.status, cursor: true })
   })
 
   it('carries on when storage is full or blocked', () => {

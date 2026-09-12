@@ -38,6 +38,7 @@ describe('App', () => {
     vi.resetAllMocks()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    localStorage.clear()
   })
 
   it('renders the editor in the main landmark', () => {
@@ -63,22 +64,50 @@ describe('App', () => {
     expect(document.title).toBe('• Untitled.md — typer')
   })
 
-  it('counts words and characters, or those selected', async () => {
+  it('counts lines, words and characters, or those selected', async () => {
     render(App)
-    const count = screen.getByText('0 words')
-    expect(count).toHaveAttribute('title', '0 characters')
+    const status = screen.getByRole('contentinfo')
+    expect(status).toHaveTextContent('1 line 0 words 0 characters')
 
     type('# One two\nthree')
     await vi.waitFor(() => {
-      expect(count).toHaveTextContent('3 words')
+      expect(status).toHaveTextContent('2 lines 3 words 14 characters')
     })
-    expect(count).toHaveAttribute('title', '14 characters')
 
     editorView()?.dispatch({ selection: { anchor: 2, head: 5 } })
     await vi.waitFor(() => {
-      expect(count).toHaveTextContent('1 of 3 words')
+      expect(status).toHaveTextContent('2 lines 1 of 3 words 3 of 14 characters')
     })
-    expect(count).toHaveAttribute('title', '3 of 14 characters')
+  })
+
+  it('shows the items picked in the settings in the status bar', async () => {
+    const user = userEvent.setup()
+    vi.mocked(openFile).mockResolvedValue(
+      opened('notes.txt', '\uFEFFone\r\ntwo', handle('notes.txt')),
+    )
+    render(App)
+    await user.click(command('Open'))
+    const status = await screen.findByRole('contentinfo')
+    expect(status).toHaveTextContent(/^Saved/)
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    for (const name of ['Cursor position', 'File type', 'Line endings', 'Encoding']) {
+      await user.click(screen.getByRole('switch', { name }))
+    }
+    for (const name of ['Lines', 'Words', 'Characters']) {
+      await user.click(screen.getByRole('switch', { name }))
+    }
+    editorView()?.dispatch({ selection: { anchor: 5 } })
+
+    await vi.waitFor(() => {
+      expect(status).toHaveTextContent('Saved Ln 2, Col 2 Plain text CRLF UTF-8 with BOM')
+    })
+
+    await user.click(screen.getByRole('switch', { name: 'Saved or edited' }))
+    for (const name of ['Cursor position', 'File type', 'Line endings', 'Encoding']) {
+      await user.click(screen.getByRole('switch', { name }))
+    }
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument()
   })
 
   it.each([
@@ -232,11 +261,24 @@ describe('App', () => {
     expect(readFile).toHaveBeenCalledWith(launched)
   })
 
+  it('opens the settings from the header and on Ctrl+,', async () => {
+    const user = userEvent.setup()
+    render(App)
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    const settings = screen.getByRole('dialog', { name: 'Settings' })
+    await user.click(within(settings).getByRole('button', { name: 'Close' }))
+    expect(settings).not.toBeInTheDocument()
+
+    await user.keyboard('{Control>},{/Control}')
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
+  })
+
   it('applies and remembers the theme', async () => {
     const user = userEvent.setup()
-    // jsdom has no popovers to open, so the preferences stay hidden.
-    const option = (name: string) => screen.getByRole('radio', { name, hidden: true })
+    const option = (name: string) => screen.getByRole('radio', { name })
     const { unmount } = render(App)
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
 
     await user.click(option('Dark'))
 
@@ -244,6 +286,7 @@ describe('App', () => {
     expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute('content', '#19191b')
     unmount()
     render(App)
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
     expect(option('Dark')).toBeChecked()
 
     await user.click(option('System'))
@@ -260,9 +303,75 @@ describe('App', () => {
       expect(textbox).toHaveTextContent(/^Some bold$/)
     })
 
-    await user.click(screen.getByRole('checkbox', { name: 'Render Markdown', hidden: true }))
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(screen.getByRole('switch', { name: 'Render Markdown' }))
 
     expect(textbox).toHaveTextContent('Some **bold**')
+  })
+
+  it('shows line numbers when turned on', async () => {
+    const user = userEvent.setup()
+    render(App)
+    type('one\ntwo')
+    expect(document.querySelector('.cm-lineNumbers')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(screen.getByRole('switch', { name: 'Line numbers' }))
+
+    expect(document.querySelector('.cm-lineNumbers')).toHaveTextContent('12')
+  })
+
+  it('formats Markdown from the toolbar, which plain text files only get editing tools in', async () => {
+    const user = userEvent.setup()
+    vi.mocked(openFile).mockResolvedValue(opened('notes.txt', 'hi'))
+    render(App)
+    const toolbar = screen.getByRole('toolbar', { name: 'Formatting' })
+    type('word')
+    editorView()?.dispatch({ selection: { anchor: 0, head: 4 } })
+
+    await user.click(within(toolbar).getByRole('button', { name: 'Bold' }))
+    await shows('**word**')
+    await user.click(within(toolbar).getByRole('button', { name: 'Undo' }))
+    await shows('word')
+    await user.click(within(toolbar).getByRole('button', { name: 'Heading 2' }))
+    await shows('## word')
+
+    await user.click(command('Open'))
+    await user.click(await screen.findByRole('button', { name: 'Discard' }))
+    await screen.findByText('notes.txt')
+    expect(within(toolbar).queryByRole('button', { name: 'Bold' })).not.toBeInTheDocument()
+    await user.click(within(toolbar).getByRole('button', { name: 'Find and replace' }))
+    expect(screen.getByRole('textbox', { name: 'Find' })).toBeInTheDocument()
+  })
+
+  it('moves between the toolbar’s tools with the arrow keys', async () => {
+    const user = userEvent.setup()
+    render(App)
+    const toolbar = screen.getByRole('toolbar', { name: 'Formatting' })
+    const tool = (name: string) => within(toolbar).getByRole('button', { name })
+
+    // Only the first tool is in the tab order, until another is focused.
+    expect(tool('Bold')).toHaveAttribute('tabindex', '0')
+    expect(tool('Italic')).toHaveAttribute('tabindex', '-1')
+    tool('Bold').focus()
+    await user.keyboard('{ArrowRight}')
+    expect(tool('Italic')).toHaveFocus()
+    expect(tool('Italic')).toHaveAttribute('tabindex', '0')
+    expect(tool('Bold')).toHaveAttribute('tabindex', '-1')
+    await user.keyboard('{ArrowLeft}{ArrowLeft}')
+    expect(tool('Find and replace')).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(tool('Bold')).toHaveFocus()
+  })
+
+  it('hides the toolbar when turned off', async () => {
+    const user = userEvent.setup()
+    render(App)
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(screen.getByRole('switch', { name: 'Formatting toolbar' }))
+
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
   })
 
   it('starts a new file from the file menu', async () => {
