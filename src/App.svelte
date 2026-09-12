@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { EditorSelection, Text } from '@codemirror/state'
   import { onMount } from 'svelte'
+  import { MediaQuery } from 'svelte/reactivity'
   import ConfirmDialog from '$lib/dialog/ConfirmDialog.svelte'
   import { Confirmation } from '$lib/dialog/confirmation.svelte'
   import { countString, countText, type Counts } from '$lib/editor/count'
@@ -13,6 +14,8 @@
   import FileTree from '$lib/files/FileTree.svelte'
   import type { TextFile } from '$lib/files/textFile.svelte'
   import { Workspace } from '$lib/files/workspace.svelte'
+  import { Preferences } from '$lib/preferences/preferences.svelte'
+  import PreferencesPanel from '$lib/preferences/PreferencesPanel.svelte'
 
   const confirmation = new Confirmation()
   const workspace = new Workspace(confirmation.ask)
@@ -24,6 +27,25 @@
       if (handle instanceof FileSystemFileHandle) openWith(() => readFile(handle))
     })
   })
+
+  const preferences = new Preferences()
+
+  $effect(() => {
+    preferences.save()
+  })
+
+  // The page follows the system's colour scheme unless the user picked one (see `app.css`).
+  $effect(() => {
+    document.documentElement.dataset.theme = preferences.theme
+  })
+
+  const systemDark = new MediaQuery('(prefers-color-scheme: dark)')
+  /** Colours the browser's or installed app's title bar like the page. */
+  const themeColor = $derived(
+    preferences.theme === 'dark' || (preferences.theme === 'system' && systemDark.current)
+      ? '#19191b'
+      : '#fdfdfc',
+  )
 
   const title = $derived(`${workspace.file.dirty ? '• ' : ''}${workspace.file.name} — typer`)
 
@@ -137,6 +159,7 @@
 
 <svelte:head>
   <title>{title}</title>
+  <meta name="theme-color" content={themeColor} />
 </svelte:head>
 
 <svelte:window {onkeydown} {onbeforeunload} {onfocus} />
@@ -178,7 +201,16 @@
       Save as
     </button>
   </div>
+  <button type="button" class="icon" popovertarget="preferences" aria-label="Preferences">
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" />
+      <circle cx="10" cy="4.5" r="1.5" />
+      <circle cx="6" cy="11.5" r="1.5" />
+    </svg>
+  </button>
 </header>
+
+<PreferencesPanel id="preferences" {preferences} />
 
 {#if workspace.folder && filesShown}
   <!-- On narrow screens, where the files cover the editor, a click beside them closes them. -->
@@ -256,11 +288,26 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem;
+
+    /* Below the rest on narrow screens, which keeps the preferences on the first line. */
+    @media (width < 40rem) {
+      order: 1;
+    }
   }
 
   .toggle {
-    display: grid;
     margin-inline: -0.75rem -0.5rem;
+  }
+
+  /* The preferences open under this. */
+  .icon {
+    margin-inline-start: -0.75rem;
+    anchor-name: --preferences;
+  }
+
+  .toggle,
+  .icon {
+    display: grid;
     padding: 0.25rem 0.5rem;
 
     & svg {

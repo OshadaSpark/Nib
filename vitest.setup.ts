@@ -1,5 +1,11 @@
 // Registers DOM matchers (e.g. `toBeInTheDocument`) and their types for component tests.
 import '@testing-library/jest-dom/vitest'
+import { afterEach } from 'vitest'
+
+// Preferences are saved in local storage, which jsdom keeps between tests.
+afterEach(() => {
+  localStorage.clear()
+})
 
 // jsdom does not implement modal dialogs. This covers what the app uses: opening, and closing with
 // a return value, which fires `close`. Escape is left to the E2E tests.

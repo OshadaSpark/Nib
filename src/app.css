@@ -29,6 +29,19 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * A theme picked in the preferences, over the system's. Set in the stylesheet rather than inline, as
+ * the build compiles `light-dark()` for older browsers into variables that only `color-scheme`
+ * declarations here switch.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
 *,
 *::before,
 *::after {
