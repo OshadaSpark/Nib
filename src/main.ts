@@ -9,3 +9,9 @@ if (!target) {
 }
 
 mount(App, { target })
+
+// Caches the app for offline use, and makes it installable. Not in development, where the files
+// change with every edit.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(console.error)
+}
