@@ -1,3 +1,5 @@
+import { writeFile } from './writeFile'
+
 /** The files a folder lists: Markdown and plain text. */
 const listedFile = /\.(?:md|markdown|txt)$/i
 
@@ -14,6 +16,10 @@ const missing = new Set(['NotFoundError', 'TypeMismatchError'])
 
 /** The directory part of a path, `''` for the folder's root. */
 export const parentOf = (path: string): string => path.slice(0, Math.max(0, path.lastIndexOf('/')))
+
+/** Whether `name` works as a file name: not empty, nor a path. */
+export const isValidName = (name: string): boolean =>
+  name.trim() !== '' && name !== '.' && name !== '..' && !/[/\\]/.test(name)
 
 export class FileNode {
   readonly kind = 'file'
@@ -133,11 +139,72 @@ export class Folder {
     return (await this.root.handle.resolve(handle))?.join('/') ?? null
   }
 
+  /** Creates an empty file named `name` in `directory`. Rejects if the name is taken. */
+  async create(directory: string, name: string): Promise<FileSystemFileHandle> {
+    const parent = await this.#directory(directory)
+    await this.#assertFree(parent, name)
+    const handle = await parent.getFileHandle(name, { create: true })
+    await this.#listed(directory)
+    return handle
+  }
+
+  /** Renames the file at `path` within its directory. Rejects if the name is taken. */
+  async rename(path: string, name: string): Promise<FileSystemFileHandle> {
+    const directory = parentOf(path)
+    const parent = await this.#directory(directory)
+    const handle = await parent.getFileHandle(nameOf(path))
+    // A name differing only in case finds the file itself on case-insensitive file systems.
+    if (name.toLowerCase() !== handle.name.toLowerCase()) await this.#assertFree(parent, name)
+    let renamed: FileSystemFileHandle
+    try {
+      if (!handle.move) throw new DOMException('move() is not supported', 'NotSupportedError')
+      await handle.move(name)
+      renamed = handle
+    } catch {
+      // Where moving isn't available, copy the file under its new name, then delete the original,
+      // unless the copy is the original, as on a case-insensitive file system.
+      renamed = await parent.getFileHandle(name, { create: true })
+      if (await renamed.isSameEntry(handle)) {
+        throw new DOMException(`Can’t rename ${handle.name} to ${name}`, 'NotSupportedError')
+      }
+      await writeFile(renamed, await handle.getFile())
+      await parent.removeEntry(handle.name)
+    }
+    await this.#listed(directory)
+    return renamed
+  }
+
+  /** Deletes the file at `path`. */
+  async remove(path: string): Promise<void> {
+    const directory = parentOf(path)
+    await (await this.#directory(directory)).removeEntry(nameOf(path))
+    await this.#listed(directory)
+  }
+
   async #directory(path: string): Promise<FileSystemDirectoryHandle> {
     let directory = this.root.handle
     for (const name of path.split('/').filter(Boolean)) {
       directory = await directory.getDirectoryHandle(name)
     }
     return directory
+  }
+
+  async #assertFree(parent: FileSystemDirectoryHandle, name: string): Promise<void> {
+    const taken = await parent.getFileHandle(name).then(
+      () => true,
+      () => false,
+    )
+    if (taken) throw new DOMException(`${name} already exists`, 'InvalidModificationError')
+  }
+
+  /** Lists the directory at `path` again, if it has been listed. */
+  async #listed(path: string): Promise<void> {
+    let directory: DirectoryNode | undefined = this.root
+    for (const name of path.split('/').filter(Boolean)) {
+      const child: TreeNode | undefined = directory.children?.find((node) => node.name === name)
+      directory = child?.kind === 'directory' ? child : undefined
+      if (!directory) return
+    }
+    if (directory.children) await this.list(directory)
   }
 }

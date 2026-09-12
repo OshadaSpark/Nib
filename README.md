@@ -108,7 +108,11 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
   write to one): a tree of its Markdown and text files, leaving out dot files and `node_modules`,
   listed lazily as directories expand. `FileTree.svelte` shows it beside the editor, or over it on
   narrow screens. Switching files keeps each file's unsaved changes, undo history, cursor and scroll
-  position; a dot in the tree marks the files with unsaved changes.
+  position; a dot in the tree marks the files with unsaved changes. The tree also creates files
+  (named in place, and given `.md` unless they end in `.md`, `.markdown` or `.txt`), renames them,
+  keeping unsaved changes, and deletes them after asking. Renaming uses `move()` where the browser
+  allows it for files on disk, and otherwise copies the file under its new name and deletes the
+  original.
 - When the window regains focus, the workspace lists the folder again and checks whether the open
   file changed on disk (with the File System Access API). It reloads a file without unsaved changes, and asks first otherwise.
   The editor takes over the new content without remounting (`difference.ts`), so the cursor and

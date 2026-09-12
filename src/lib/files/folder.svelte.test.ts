@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Folder, parentOf, type DirectoryNode, type TreeNode } from './folder.svelte'
-import { fakeFolder } from './testFiles'
+import { fakeFolder, fakeText } from './testFiles'
 
 const names = (directory: DirectoryNode): string[] =>
   (directory.children ?? []).map((node) => node.name)
@@ -106,6 +106,68 @@ describe('Folder', () => {
 
     expect(await folder.pathOf(today)).toBe('journal/today.md')
     expect(await folder.pathOf(fakeFolder('Elsewhere', {}))).toBeNull()
+  })
+})
+
+describe('Folder file operations', () => {
+  const folderWith = async () => {
+    const handle = fakeFolder('Notes', { 'a.md': 'A', journal: { 'b.md': 'B' } })
+    const folder = new Folder(handle)
+    await folder.list()
+    return { handle, folder }
+  }
+
+  it('creates files, listing them', async () => {
+    const { handle, folder } = await folderWith()
+
+    const created = await folder.create('', 'new.md')
+
+    expect(created.name).toBe('new.md')
+    expect(fakeText(handle, 'new.md')).toBe('')
+    expect(names(folder.root)).toContain('new.md')
+    await folder.create('journal', 'c.md')
+    expect(fakeText(handle, 'journal/c.md')).toBe('')
+  })
+
+  it('won’t create or rename over an existing file', async () => {
+    const { handle, folder } = await folderWith()
+    await handle.getFileHandle('taken.md', { create: true })
+
+    await expect(folder.create('', 'a.md')).rejects.toThrow('a.md already exists')
+    await expect(folder.rename('a.md', 'taken.md')).rejects.toThrow('taken.md already exists')
+    expect(fakeText(handle, 'a.md')).toBe('A')
+  })
+
+  it('renames files in place where it can', async () => {
+    const { handle, folder } = await folderWith()
+    const original = await handle.getFileHandle('a.md')
+
+    const renamed = await folder.rename('a.md', 'A.md')
+
+    expect(renamed).toBe(original)
+    expect(fakeText(handle, 'A.md')).toBe('A')
+    expect(names(folder.root)).toEqual(['journal', 'A.md'])
+  })
+
+  it('renames by copying where files can’t move', async () => {
+    const { handle, folder } = await folderWith()
+    const journal = await handle.getDirectoryHandle('journal')
+    Object.defineProperty(await journal.getFileHandle('b.md'), 'move', { value: undefined })
+
+    const renamed = await folder.rename('journal/b.md', 'c.md')
+
+    expect(renamed.name).toBe('c.md')
+    expect(fakeText(handle, 'journal/c.md')).toBe('B')
+    expect(fakeText(handle, 'journal/b.md')).toBeUndefined()
+  })
+
+  it('deletes files', async () => {
+    const { handle, folder } = await folderWith()
+
+    await folder.remove('a.md')
+
+    expect(fakeText(handle, 'a.md')).toBeUndefined()
+    expect(names(folder.root)).toEqual(['journal'])
   })
 })
 

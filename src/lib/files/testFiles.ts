@@ -61,6 +61,10 @@ class FakeFile {
     })
   }
 
+  isSameEntry(other: unknown): Promise<boolean> {
+    return Promise.resolve(other === this)
+  }
+
   move(name: string): Promise<void> {
     this.parent.entries_.delete(this.name)
     this.name = name
