@@ -1,5 +1,5 @@
 import type { Confirm } from '$lib/dialog/confirmation.svelte'
-import { openFile, saveFile, type OpenedFile } from './fileAccess'
+import { lastModified, openFile, readFile, saveFile, type OpenedFile } from './fileAccess'
 import { decodeText, TextFile } from './textFile.svelte'
 
 const untitledName = 'Untitled.md'
@@ -42,7 +42,7 @@ export class Workspace {
       if (text === null) {
         this.error = `${opened.name} isn’t a UTF-8 text file.`
       } else if (await this.#confirmDiscard()) {
-        this.file = new TextFile(opened.name, text, opened.handle)
+        this.file = new TextFile(opened.name, text, opened.handle, opened.modified)
       }
     })
   }
@@ -63,8 +63,34 @@ export class Workspace {
       // Edits made while saving are not part of the save, so they leave the file dirty.
       const { content } = file
       const saved = await saveFile(file.serialize(content), file.name, handle)
-      if (saved) file.markSaved(content, saved.name, saved.handle)
+      if (saved) file.markSaved(content, saved.name, saved.handle, saved.modified)
     })
+  }
+
+  /**
+   * Reloads the file if it changed on disk since it was read or saved. With unsaved changes, asks
+   * first; if the user keeps them, asks again only on the next change.
+   */
+  async checkDisk(): Promise<void> {
+    const { file } = this
+    if (!file.handle || this.#busy) return
+    // Not through `#run`, as it's no action of the user's: it neither clears nor reports errors.
+    this.#busy = true
+    try {
+      if ((await lastModified(file.handle)) === file.modified) return
+      const disk = await readFile(file.handle)
+      const text = decodeText(disk.bytes)
+      if (text === null || file.matchesSaved(text) || !(await this.#confirmReload())) {
+        file.modified = disk.modified
+      } else {
+        file.reload(text, disk.modified)
+      }
+    } catch (error) {
+      // For example, the file was moved or deleted. Saving will report it, if it still fails then.
+      console.warn(error)
+    } finally {
+      this.#busy = false
+    }
   }
 
   async #run(failureMessage: string, action: () => Promise<void>): Promise<void> {
@@ -79,6 +105,19 @@ export class Workspace {
     } finally {
       this.#busy = false
     }
+  }
+
+  async #confirmReload(): Promise<boolean> {
+    return (
+      !this.file.dirty ||
+      this.#confirm({
+        title: `${this.file.name} changed on disk`,
+        message:
+          'Reload it and lose your unsaved changes, or keep your version? Saving will then replace the file on disk.',
+        confirm: 'Reload',
+        cancel: 'Keep mine',
+      })
+    )
   }
 
   async #confirmDiscard(): Promise<boolean> {

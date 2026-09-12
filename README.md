@@ -104,6 +104,10 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
 - `workspace.svelte.ts` implements New, Open, Save and Save as. It reports failures in the header, and
   asks before discarding unsaved changes, in the dialog from
   [`src/lib/dialog/`](src/lib/dialog).
+- When the window regains focus, the workspace checks whether the open file changed on disk (with
+  the File System Access API). It reloads a file without unsaved changes, and asks first otherwise.
+  The editor takes over the new content without remounting (`difference.ts`), so the cursor and
+  undo history stay.
 
 | Shortcut                 | Action                            |
 | ------------------------ | --------------------------------- |

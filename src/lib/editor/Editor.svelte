@@ -9,10 +9,15 @@
   import { EditorView } from '@codemirror/view'
   import { untrack } from 'svelte'
   import type { Attachment } from 'svelte/attachments'
+  import { difference } from './difference'
   import { editorExtensions } from './extensions'
 
   interface Props {
-    /** Initial document. The editor owns the document afterwards; remount it to load another. */
+    /**
+     * The document. The editor owns it once created, and reports changes through `onchange`. A new
+     * `doc` replaces the parts that differ, keeping the selection and undo history, as when a file
+     * is reloaded; remount the editor to start afresh.
+     */
     doc?: Text
     /** Language extensions, which can change while the editor is mounted. */
     language?: Extension
@@ -44,6 +49,10 @@
     const view = new EditorView({ state, parent })
     untrack(() => onselect?.(state.selection))
     view.focus()
+
+    $effect(() => {
+      if (!doc.eq(view.state.doc)) view.dispatch({ changes: difference(view.state.doc, doc) })
+    })
 
     $effect(() => {
       if (language !== languageCompartment.get(view.state)) {

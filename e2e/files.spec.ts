@@ -52,6 +52,33 @@ test.describe('with the File System Access API', () => {
     expect(await readText(page, 'notes.md')).toBe('new first\r\nsecond')
   })
 
+  test('reloads the file when it changed on disk', async ({ page }) => {
+    await writeText(page, 'notes.md', 'one two three')
+    await page.keyboard.press('ControlOrMeta+o')
+    await expect(lines(page)).toHaveText(['one two three'])
+    await page.keyboard.press('End')
+
+    // As when coming back from the app that changed the file.
+    await writeText(page, 'notes.md', 'one 2 three')
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await expect(lines(page)).toHaveText(['one 2 three'])
+    await expect(page).toHaveTitle('notes.md — typer')
+
+    // The cursor stayed at the end of the line.
+    await page.keyboard.type('!')
+    await expect(lines(page)).toHaveText(['one 2 three!'])
+
+    await writeText(page, 'notes.md', 'changed again')
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await page
+      .getByRole('dialog', { name: 'notes.md changed on disk' })
+      .getByRole('button', { name: 'Reload' })
+      .click()
+
+    await expect(lines(page)).toHaveText(['changed again'])
+    await expect(page).toHaveTitle('notes.md — typer')
+  })
+
   test('asks where to save a new file', async ({ page }) => {
     await page.keyboard.type('# Draft')
     await page.getByRole('button', { name: 'Save', exact: true }).click()

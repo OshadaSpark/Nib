@@ -10,13 +10,25 @@ export interface OpenedFile {
   bytes: ArrayBuffer
   /** Handle for saving back to the file, if the browser supports it. */
   handle: FileSystemFileHandle | null
+  /** When the file was last modified, in milliseconds since the epoch. */
+  modified: number
 }
 
 /** Where a file was saved. */
 export interface SavedFile {
   name: string
   handle: FileSystemFileHandle | null
+  /** When the file was last modified, which is only known with a handle. */
+  modified: number | null
 }
+
+/** Reads a file's bytes, and when it was last modified. */
+const read = async (file: File, handle: FileSystemFileHandle | null): Promise<OpenedFile> => ({
+  name: file.name,
+  bytes: await file.arrayBuffer(),
+  handle,
+  modified: file.lastModified,
+})
 
 const pickerTypes: FilePickerAcceptType[] = [
   { description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown'] } },
@@ -69,14 +81,20 @@ export const openFile = async (): Promise<OpenedFile | null> => {
 
   if (!showOpenFilePicker) {
     const file = await pickWithInput()
-    return file && { name: file.name, bytes: await file.arrayBuffer(), handle: null }
+    return file && read(file, null)
   }
 
   const [handle] = (await pick(() => showOpenFilePicker({ types: pickerTypes }))) ?? []
-  if (!handle) return null
-  const file = await handle.getFile()
-  return { name: file.name, bytes: await file.arrayBuffer(), handle }
+  return handle ? readFile(handle) : null
 }
+
+/** Reads the file behind `handle`. */
+export const readFile = async (handle: FileSystemFileHandle): Promise<OpenedFile> =>
+  read(await handle.getFile(), handle)
+
+/** When the file behind `handle` was last modified, without reading it. */
+export const lastModified = async (handle: FileSystemFileHandle): Promise<number> =>
+  (await handle.getFile()).lastModified
 
 /**
  * Reads the first file of a drop, with its handle where the browser provides one (Chromium), so
@@ -91,11 +109,7 @@ export const droppedFile = (data: DataTransfer): (() => Promise<OpenedFile>) | n
   const handle = item.getAsFileSystemHandle?.()
   return async () => {
     const fileHandle = await handle
-    return {
-      name: file.name,
-      bytes: await file.arrayBuffer(),
-      handle: fileHandle instanceof FileSystemFileHandle ? fileHandle : null,
-    }
+    return read(file, fileHandle instanceof FileSystemFileHandle ? fileHandle : null)
   }
 }
 
@@ -112,7 +126,7 @@ export const saveFile = async (
 
   if (!showSaveFilePicker) {
     download(text, name)
-    return { name, handle: null }
+    return { name, handle: null, modified: null }
   }
 
   const target =
@@ -129,5 +143,5 @@ export const saveFile = async (
     await writable.abort()
     throw error
   }
-  return { name: target.name, handle: target }
+  return { name: target.name, handle: target, modified: await lastModified(target) }
 }
