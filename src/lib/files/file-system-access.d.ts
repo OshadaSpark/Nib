@@ -37,3 +37,17 @@ interface FileSystemFileHandle {
 interface DataTransferItem {
   getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>
 }
+
+// Files the installed app was opened with, from the File Handling API (Chromium).
+// https://wicg.github.io/manifest-incubations/#launching-a-web-app-with-handled-files
+interface LaunchParams {
+  readonly files: readonly FileSystemHandle[]
+}
+
+interface LaunchQueue {
+  setConsumer: (consumer: (params: LaunchParams) => void) => void
+}
+
+interface Window {
+  launchQueue?: LaunchQueue
+}

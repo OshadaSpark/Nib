@@ -59,8 +59,8 @@ export class Workspace {
     await this.#open(openFile)
   }
 
-  /** Opens a file dropped on the page, read by `read` (see `droppedFile`). */
-  async openDropped(read: () => Promise<OpenedFile>): Promise<void> {
+  /** Opens the file `read` reads, as one dropped on the page or opened from the system. */
+  async openWith(read: () => Promise<OpenedFile>): Promise<void> {
     await this.#open(read)
   }
 

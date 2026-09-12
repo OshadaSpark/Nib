@@ -34,6 +34,7 @@ describe('App', () => {
   afterEach(() => {
     vi.resetAllMocks()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('renders the editor in the main landmark', () => {
@@ -204,6 +205,26 @@ describe('App', () => {
       expect(within(files).queryByRole('button', { name: 'goals.md' })).not.toBeInTheDocument()
     })
     expect(fakeText(notes, 'goals.md')).toBeUndefined()
+  })
+
+  it('opens the file the installed app was launched with', async () => {
+    // jsdom has neither handles nor a launch queue.
+    class FileHandle {
+      readonly name = 'launched.md'
+    }
+    vi.stubGlobal('FileSystemFileHandle', FileHandle)
+    const launched = new FileHandle() as unknown as FileSystemFileHandle
+    vi.stubGlobal('launchQueue', {
+      setConsumer: (consumer: (params: LaunchParams) => void) => {
+        consumer({ files: [launched] })
+      },
+    })
+    vi.mocked(readFile).mockResolvedValue(opened('launched.md', '# Launched', launched))
+
+    render(App)
+
+    expect(await screen.findByText('launched.md')).toBeInTheDocument()
+    expect(readFile).toHaveBeenCalledWith(launched)
   })
 
   it('starts a new file from the New button', async () => {
