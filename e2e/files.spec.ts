@@ -16,6 +16,7 @@ test.describe('with the File System Access API', () => {
       }
       window.showOpenFilePicker = async () => [await fileHandle('notes.md')]
       window.showSaveFilePicker = () => fileHandle('saved.md')
+      window.showDirectoryPicker = () => navigator.storage.getDirectory()
     })
     await page.goto('/')
   })
@@ -79,6 +80,30 @@ test.describe('with the File System Access API', () => {
     await expect(page).toHaveTitle('notes.md — typer')
   })
 
+  test('opens a folder, and switches between its files, keeping their edits', async ({ page }) => {
+    await writeText(page, 'ideas.md', '# Ideas')
+    await writeText(page, 'todo.txt', 'milk')
+    const files = page.getByRole('navigation', { name: 'Files' })
+
+    await page.getByRole('button', { name: 'Open folder' }).click()
+    await files.getByRole('button', { name: 'ideas.md' }).click()
+    await expect(lines(page)).toHaveText(['# Ideas'])
+    await page.keyboard.press('ControlOrMeta+End')
+    await page.keyboard.type(' and more')
+
+    await files.getByRole('button', { name: 'todo.txt' }).click()
+    await expect(lines(page)).toHaveText(['milk'])
+    await expect(files.getByRole('button', { name: 'ideas.md (edited)' })).toBeVisible()
+
+    // The cursor is back where it was, at the end of the heading, so its markup shows.
+    await files.getByRole('button', { name: 'ideas.md (edited)' }).click()
+    await expect(lines(page)).toHaveText(['# Ideas and more'])
+    await page.keyboard.press('ControlOrMeta+s')
+
+    await expect(files.getByRole('button', { name: 'ideas.md', exact: true })).toBeVisible()
+    expect(await readText(page, 'ideas.md')).toBe('# Ideas and more')
+  })
+
   test('asks where to save a new file', async ({ page }) => {
     await page.keyboard.type('# Draft')
     await page.getByRole('button', { name: 'Save', exact: true }).click()
@@ -93,8 +118,14 @@ test.describe('without the File System Access API', () => {
     await page.addInitScript(() => {
       delete window.showOpenFilePicker
       delete window.showSaveFilePicker
+      delete window.showDirectoryPicker
     })
     await page.goto('/')
+  })
+
+  test('doesn’t offer to open folders', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Open', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Open folder' })).toBeHidden()
   })
 
   const openFile = async (page: Page, name: string, text: string) => {

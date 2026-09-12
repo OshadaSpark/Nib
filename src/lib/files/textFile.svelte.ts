@@ -1,3 +1,4 @@
+import type { EditorSnapshot } from '$lib/editor/snapshot'
 import { Text } from '@codemirror/state'
 
 const byteOrderMark = '\uFEFF'
@@ -30,6 +31,10 @@ export class TextFile {
   readonly dirty: boolean = $derived(!this.content.eq(this.#saved))
   /** When the file was last modified, as of reading or saving it, to notice changes on disk. */
   modified: number | null
+  /** Where the file is in the open folder, if it is in it. */
+  path: string | null = $state(null)
+  /** The editor's state while another file is shown, so that switching back restores it. */
+  snapshot: EditorSnapshot | null = null
 
   /** The editor normalises line breaks to `\n`, so the file's own is restored on save. */
   #lineBreak = '\n'

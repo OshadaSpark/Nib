@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { historyField } from '@codemirror/commands'
   import {
     Compartment,
     EditorState,
@@ -11,6 +12,7 @@
   import type { Attachment } from 'svelte/attachments'
   import { difference } from './difference'
   import { editorExtensions } from './extensions'
+  import type { EditorSnapshot } from './snapshot'
 
   interface Props {
     /**
@@ -25,32 +27,56 @@
     onchange?: (doc: Text) => void
     /** Called with the selection when the editor is created and whenever the selection changes. */
     onselect?: (selection: EditorSelection) => void
+    /** State to start from instead of `doc`, as the editor last had it before `onleave`. */
+    snapshot?: EditorSnapshot | null
+    /** Called with the editor's state as it is unmounted, to restore it through `snapshot`. */
+    onleave?: (snapshot: EditorSnapshot) => void
   }
 
-  const { doc = Text.empty, language = [], onchange, onselect }: Props = $props()
+  const {
+    doc = Text.empty,
+    language = [],
+    onchange,
+    onselect,
+    snapshot = null,
+    onleave,
+  }: Props = $props()
+
+  // Undo history is part of the state only through its field.
+  const fields = { history: historyField }
 
   const languageCompartment = new Compartment()
 
   const mountEditor: Attachment<HTMLElement> = (parent) => {
-    // Untracked so that the editor is created once rather than recreated when a prop changes.
-    const state = untrack(() =>
-      EditorState.create({
-        doc,
-        extensions: [
-          editorExtensions,
-          languageCompartment.of(language),
-          EditorView.updateListener.of((update) => {
-            if (update.docChanged) onchange?.(update.state.doc)
-            if (update.selectionSet) onselect?.(update.state.selection)
-          }),
-        ],
+    const extensions = [
+      editorExtensions,
+      languageCompartment.of(untrack(() => language)),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) onchange?.(update.state.doc)
+        if (update.selectionSet) onselect?.(update.state.selection)
       }),
-    )
+    ]
+    // Untracked so that the editor is created once rather than recreated when a prop changes.
+    const { initial, restored, leave } = untrack(() => ({
+      initial: doc,
+      restored: snapshot,
+      // Taken now, for the file shown now: by the time the editor is unmounted, it may differ.
+      leave: onleave,
+    }))
+    const state = restored
+      ? EditorState.fromJSON(restored.state, { extensions }, fields)
+      : EditorState.create({ doc: initial, extensions })
     const view = new EditorView({ state, parent })
+    if (restored) view.dispatch({ effects: restored.scroll })
     untrack(() => onselect?.(state.selection))
     view.focus()
 
+    // A new `doc`, as when the file is reloaded from disk, rather than the one the editor started
+    // from, which a snapshot's document may have moved on from.
+    let shown = initial
     $effect(() => {
+      if (doc === shown) return
+      shown = doc
       if (!doc.eq(view.state.doc)) view.dispatch({ changes: difference(view.state.doc, doc) })
     })
 
@@ -61,6 +87,7 @@
     })
 
     return () => {
+      leave?.({ state: view.state.toJSON(fields), scroll: view.scrollSnapshot() })
       view.destroy()
     }
   }
