@@ -79,6 +79,27 @@ export const openFile = async (): Promise<OpenedFile | null> => {
 }
 
 /**
+ * Reads the first file of a drop, with its handle where the browser provides one (Chromium), so
+ * that saving writes back to it. Must be called while the drop event is dispatched, as its data is
+ * gone afterwards; the file is only read when the returned function is called. `null` if no file
+ * was dropped.
+ */
+export const droppedFile = (data: DataTransfer): (() => Promise<OpenedFile>) | null => {
+  const item = [...data.items].find(({ kind }) => kind === 'file')
+  const file = item?.getAsFile()
+  if (!item || !file) return null
+  const handle = item.getAsFileSystemHandle?.()
+  return async () => {
+    const fileHandle = await handle
+    return {
+      name: file.name,
+      bytes: await file.arrayBuffer(),
+      handle: fileHandle instanceof FileSystemFileHandle ? fileHandle : null,
+    }
+  }
+}
+
+/**
  * Saves `text` to `handle`, or asks the user where to save it when there is no handle. Resolves to
  * `null` if they cancel. Without the File System Access API, the file is downloaded instead.
  */

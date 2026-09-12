@@ -124,3 +124,24 @@ test.describe('without the File System Access API', () => {
     await expect(lines(page)).toHaveText(['- one', ''])
   })
 })
+
+test.describe('dropping a file', () => {
+  test('opens it, rather than inserting its text', async ({ page }) => {
+    await page.goto('/')
+    const editor = page.getByRole('textbox', { name: 'Document' })
+    const dataTransfer = await page.evaluateHandle(() => {
+      const data = new DataTransfer()
+      data.items.add(new File(['# Dropped'], 'dropped.md', { type: 'text/markdown' }))
+      return data
+    })
+
+    await editor.dispatchEvent('dragenter', { dataTransfer })
+    await expect(page.getByText('Drop to open')).toBeVisible()
+    await editor.dispatchEvent('drop', { dataTransfer })
+
+    await expect(page).toHaveTitle('dropped.md — typer')
+    // The cursor is on the heading, so its markup shows.
+    await expect(lines(page)).toHaveText(['# Dropped'])
+    await expect(page.getByText('Drop to open')).toBeHidden()
+  })
+})

@@ -5,6 +5,8 @@
   import { countString, countText, type Counts } from '$lib/editor/count'
   import { languageFor } from '$lib/editor/extensions'
   import Editor from '$lib/editor/Editor.svelte'
+  import DropOverlay from '$lib/files/DropOverlay.svelte'
+  import type { OpenedFile } from '$lib/files/fileAccess'
   import { Workspace } from '$lib/files/workspace.svelte'
 
   const confirmation = new Confirmation()
@@ -43,6 +45,9 @@
   }
   const open = (): void => {
     void workspace.open()
+  }
+  const openDropped = (read: () => Promise<OpenedFile>): void => {
+    void workspace.openDropped(read)
   }
   const save = (): void => {
     void workspace.save()
@@ -113,6 +118,7 @@
   {/key}
 </main>
 
+<DropOverlay ondropfile={openDropped} />
 <ConfirmDialog {confirmation} />
 
 <style>

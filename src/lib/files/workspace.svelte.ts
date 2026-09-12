@@ -1,5 +1,5 @@
 import type { Confirm } from '$lib/dialog/confirmation.svelte'
-import { openFile, saveFile } from './fileAccess'
+import { openFile, saveFile, type OpenedFile } from './fileAccess'
 import { decodeText, TextFile } from './textFile.svelte'
 
 const untitledName = 'Untitled.md'
@@ -24,9 +24,19 @@ export class Workspace {
     })
   }
 
+  /** Asks the user for a file to open. */
   async open(): Promise<void> {
+    await this.#open(openFile)
+  }
+
+  /** Opens a file dropped on the page, read by `read` (see `droppedFile`). */
+  async openDropped(read: () => Promise<OpenedFile>): Promise<void> {
+    await this.#open(read)
+  }
+
+  async #open(read: () => Promise<OpenedFile | null>): Promise<void> {
     await this.#run('Couldn’t open the file.', async () => {
-      const opened = await openFile()
+      const opened = await read()
       if (!opened) return
       const text = decodeText(opened.bytes)
       if (text === null) {
