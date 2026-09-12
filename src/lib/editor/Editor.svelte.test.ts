@@ -1,5 +1,6 @@
 import { languageFor } from '$lib/editor/extensions'
 import Editor from '$lib/editor/Editor.svelte'
+import { undo } from '@codemirror/commands'
 import { language } from '@codemirror/language'
 import { Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
@@ -37,6 +38,19 @@ describe('Editor', () => {
 
     expect(onchange).toHaveBeenCalledOnce()
     expect(onchange).toHaveBeenCalledWith(expect.objectContaining({ length: 5 }))
+  })
+
+  it('takes over a new document, keeping the cursor and undo history', async () => {
+    const { rerender } = render(Editor, { doc: Text.of(['one two three']) })
+    const view = getView()
+    view.dispatch({ selection: { anchor: 13 } })
+
+    await rerender({ doc: Text.of(['one 2 three']) })
+
+    expect(view.state.doc.toString()).toBe('one 2 three')
+    expect(view.state.selection.main.head).toBe(11)
+    expect(undo(view)).toBe(true)
+    expect(view.state.doc.toString()).toBe('one two three')
   })
 
   it('switches language when the prop changes', async () => {

@@ -46,6 +46,10 @@
   const open = (): void => {
     void workspace.open()
   }
+  /** Coming back to the page, for example from another app, is when the file may have changed. */
+  const onfocus = (): void => {
+    void workspace.checkDisk()
+  }
   const openDropped = (read: () => Promise<OpenedFile>): void => {
     void workspace.openDropped(read)
   }
@@ -83,7 +87,7 @@
   <title>{title}</title>
 </svelte:head>
 
-<svelte:window {onkeydown} {onbeforeunload} />
+<svelte:window {onkeydown} {onbeforeunload} {onfocus} />
 
 <header>
   <p class="file">
@@ -107,10 +111,11 @@
 </header>
 
 <main>
-  <!-- A new file gets a new editor, so it starts with fresh state such as undo history. -->
+  <!-- A new file gets a new editor, so it starts with fresh state such as undo history. A file
+       reloaded from disk keeps its editor, which takes over the new content. -->
   {#key workspace.file}
     <Editor
-      doc={workspace.file.initial}
+      doc={workspace.file.loaded}
       language={languageFor(workspace.file.name)}
       {onchange}
       {onselect}

@@ -10,7 +10,7 @@ describe('TextFile', () => {
     const file = new TextFile('notes.md', 'one\ntwo')
 
     expect(file.content.toString()).toBe('one\ntwo')
-    expect(file.content).toBe(file.initial)
+    expect(file.content).toBe(file.loaded)
     expect(file.dirty).toBe(false)
   })
 
@@ -29,11 +29,12 @@ describe('TextFile', () => {
     const handle = { name: 'saved.md' } as FileSystemFileHandle
 
     file.content = edit(file, 'text')
-    file.markSaved(file.content, 'saved.md', handle)
+    file.markSaved(file.content, 'saved.md', handle, 5)
 
     expect(file.dirty).toBe(false)
     expect(file.name).toBe('saved.md')
     expect(file.handle).toBe(handle)
+    expect(file.modified).toBe(5)
   })
 
   it('stays dirty when edited after the content that was saved', () => {
@@ -41,7 +42,7 @@ describe('TextFile', () => {
     const saved = edit(file, 'saved')
 
     file.content = edit(file, 'saved, then edited')
-    file.markSaved(saved, file.name, null)
+    file.markSaved(saved, file.name, null, null)
 
     expect(file.dirty).toBe(true)
   })
@@ -67,6 +68,29 @@ describe('TextFile', () => {
 
     expect(file.content.toString()).toBe('# Notes')
     expect(file.serialize()).toBe('\uFEFF# Notes')
+  })
+})
+
+describe('TextFile.reload', () => {
+  it('replaces the content, line breaks and byte-order mark with the file’s new text', () => {
+    const file = new TextFile('notes.md', 'old', null, 1)
+    file.content = Text.of(['edited'])
+
+    file.reload('\uFEFFnew\r\ntext', 2)
+
+    expect(file.content.toString()).toBe('new\ntext')
+    expect(file.loaded).toBe(file.content)
+    expect(file.dirty).toBe(false)
+    expect(file.modified).toBe(2)
+    expect(file.serialize()).toBe('\uFEFFnew\r\ntext')
+  })
+
+  it('tells whether text matches the saved content', () => {
+    const file = new TextFile('notes.md', 'a\r\nb')
+    file.content = Text.of(['edited'])
+
+    expect(file.matchesSaved('a\r\nb')).toBe(true)
+    expect(file.matchesSaved('a\nb')).toBe(false)
   })
 })
 

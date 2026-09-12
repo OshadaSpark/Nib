@@ -8,4 +8,10 @@ export const opened = (
   name: string,
   text: string,
   fileHandle: FileSystemFileHandle | null = null,
-): OpenedFile => ({ name, bytes: new TextEncoder().encode(text).buffer, handle: fileHandle })
+  modified = 0,
+): OpenedFile => ({
+  name,
+  bytes: new TextEncoder().encode(text).buffer,
+  handle: fileHandle,
+  modified,
+})
