@@ -1,10 +1,13 @@
 <script lang="ts">
   import type { Text } from '@codemirror/state'
+  import ConfirmDialog from '$lib/dialog/ConfirmDialog.svelte'
+  import { Confirmation } from '$lib/dialog/confirmation.svelte'
   import { languageFor } from '$lib/editor/extensions'
   import Editor from '$lib/editor/Editor.svelte'
   import { Workspace } from '$lib/files/workspace.svelte'
 
-  const workspace = new Workspace()
+  const confirmation = new Confirmation()
+  const workspace = new Workspace(confirmation.ask)
 
   const title = $derived(`${workspace.file.dirty ? '• ' : ''}${workspace.file.name} — typer`)
 
@@ -14,7 +17,7 @@
 
   // Actions handle their own failures, so their promises need not be awaited.
   const newFile = (): void => {
-    workspace.newFile()
+    void workspace.newFile()
   }
   const open = (): void => {
     void workspace.open()
@@ -82,6 +85,8 @@
   {/key}
 </main>
 
+<ConfirmDialog {confirmation} />
+
 <style>
   header {
     display: flex;
@@ -119,28 +124,5 @@
   .actions {
     display: flex;
     gap: 0.25rem;
-  }
-
-  button {
-    padding: 0.25rem 0.625rem;
-    border: none;
-    border-radius: 0.375rem;
-    font: inherit;
-    color: inherit;
-    background: none;
-    cursor: pointer;
-    transition:
-      color 0.15s,
-      background-color 0.15s;
-
-    &:hover {
-      color: var(--color-text);
-      background-color: var(--color-hover);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--color-accent);
-      outline-offset: 2px;
-    }
   }
 </style>

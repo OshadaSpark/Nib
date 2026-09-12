@@ -1,5 +1,6 @@
 import { Text } from '@codemirror/state'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Confirm } from '$lib/dialog/confirmation.svelte'
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { openFile, saveFile } from './fileAccess'
 import { Workspace } from './workspace.svelte'
 
@@ -13,10 +14,12 @@ const type = (workspace: Workspace, text: string): void => {
 }
 
 describe('Workspace', () => {
+  let confirm: Mock<Confirm>
   let workspace: Workspace
 
   beforeEach(() => {
-    workspace = new Workspace()
+    confirm = vi.fn<Confirm>().mockResolvedValue(true)
+    workspace = new Workspace(confirm)
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
   })
 
@@ -53,14 +56,38 @@ describe('Workspace', () => {
     })
 
     it('asks before discarding unsaved changes', async () => {
-      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      confirm.mockResolvedValue(false)
       vi.mocked(openFile).mockResolvedValue({ name: 'other.md', text: '', handle: null })
       type(workspace, 'unsaved')
 
       await workspace.open()
 
-      expect(confirm).toHaveBeenCalledWith('Discard unsaved changes to Untitled.md?')
+      expect(confirm).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Your changes to Untitled.md will be lost.' }),
+      )
       expect(workspace.file.content.toString()).toBe('unsaved')
+    })
+
+    it('ignores other actions while asking', async () => {
+      let answer: (confirmed: boolean) => void = () => undefined
+      confirm.mockReturnValue(
+        new Promise((resolve) => {
+          answer = resolve
+        }),
+      )
+      vi.mocked(openFile).mockResolvedValue({ name: 'other.md', text: '', handle: null })
+      type(workspace, 'unsaved')
+
+      const opening = workspace.open()
+      await vi.waitFor(() => {
+        expect(confirm).toHaveBeenCalled()
+      })
+      await workspace.save()
+      answer(true)
+      await opening
+
+      expect(saveFile).not.toHaveBeenCalled()
+      expect(workspace.file.name).toBe('other.md')
     })
 
     it('reports failures', async () => {
@@ -156,20 +183,20 @@ describe('Workspace', () => {
       vi.mocked(openFile).mockResolvedValue({ name: 'notes.md', text: 'hi', handle: null })
       await workspace.open()
 
-      workspace.newFile()
+      await workspace.newFile()
 
       expect(workspace.file.name).toBe('Untitled.md')
       expect(workspace.file.content.length).toBe(0)
     })
 
-    it('keeps unsaved changes unless the user discards them', () => {
-      const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValue(true)
+    it('keeps unsaved changes unless the user discards them', async () => {
+      confirm.mockResolvedValueOnce(false)
       type(workspace, 'unsaved')
 
-      workspace.newFile()
+      await workspace.newFile()
       expect(workspace.file.content.toString()).toBe('unsaved')
 
-      workspace.newFile()
+      await workspace.newFile()
       expect(workspace.file.content.length).toBe(0)
       expect(confirm).toHaveBeenCalledTimes(2)
     })
