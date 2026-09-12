@@ -148,6 +148,10 @@ The button at the end of the header opens the preferences, a native popover
 
 - **Theme:** system, light or dark. A picked theme sets `data-theme` on the root element, which
   `app.css` turns into a `color-scheme`, so every `light-dark()` colour follows it.
+- **Font** (sans, serif or mono), **size** (14 to 24 px) and **column width** (narrow, medium or
+  wide: 60, 72 or 90 characters) of the text. Code keeps its monospace font. The editor sets them
+  as custom properties through a theme of their own (`appearanceTheme` in `theme.ts`), so changing
+  them makes CodeMirror measure the text again.
 
 ## Installable app
 

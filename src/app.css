@@ -20,6 +20,7 @@
   --color-match-current: light-dark(rgb(242 140 0 / 0.55), rgb(242 160 0 / 0.5));
 
   --font-sans: system-ui, sans-serif;
+  --font-serif: ui-serif, 'Iowan Old Style', Charter, Georgia, serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   font: 1rem/1.6 var(--font-sans);

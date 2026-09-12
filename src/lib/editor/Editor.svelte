@@ -13,6 +13,7 @@
   import { difference } from './difference'
   import { editorExtensions } from './extensions'
   import type { EditorSnapshot } from './snapshot'
+  import { appearanceTheme, type Appearance } from './theme'
 
   interface Props {
     /**
@@ -25,6 +26,8 @@
     language?: Extension
     /** More extensions, fixed once the editor is created. */
     extensions?: Extension
+    /** The text's font family, size and column width, which can change while mounted. */
+    appearance?: Appearance | null
     /** Called with the new document after every change. */
     onchange?: (doc: Text) => void
     /** Called with the selection when the editor is created and whenever the selection changes. */
@@ -39,6 +42,7 @@
     doc = Text.empty,
     language = [],
     extensions: extra = [],
+    appearance = null,
     onchange,
     onselect,
     snapshot = null,
@@ -49,12 +53,14 @@
   const fields = { history: historyField }
 
   const languageCompartment = new Compartment()
+  const appearanceCompartment = new Compartment()
 
   const mountEditor: Attachment<HTMLElement> = (parent) => {
     const extensions = [
       editorExtensions,
       untrack(() => extra),
       languageCompartment.of(untrack(() => language)),
+      appearanceCompartment.of(untrack(() => (appearance ? appearanceTheme(appearance) : []))),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onchange?.(update.state.doc)
         if (update.selectionSet) onselect?.(update.state.selection)
@@ -82,6 +88,16 @@
       if (doc === shown) return
       shown = doc
       if (!doc.eq(view.state.doc)) view.dispatch({ changes: difference(view.state.doc, doc) })
+    })
+
+    // Skips the first run, as the editor starts with the appearance.
+    let appeared = untrack(() => appearance)
+    $effect(() => {
+      if (appearance === appeared) return
+      appeared = appearance
+      view.dispatch({
+        effects: appearanceCompartment.reconfigure(appearance ? appearanceTheme(appearance) : []),
+      })
     })
 
     $effect(() => {

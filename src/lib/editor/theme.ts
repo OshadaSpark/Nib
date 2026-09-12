@@ -3,8 +3,24 @@ import type { Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { tagHighlighter, tags } from '@lezer/highlight'
 
+/** The text's font family, size and column width, as CSS values. */
+export interface Appearance {
+  font: string
+  size: string
+  width: string
+}
+
+/**
+ * Sets the custom properties the theme reads the text's font, size and column width from. It is a
+ * theme of its own, so that changing it makes the editor measure the text again.
+ */
+export const appearanceTheme = ({ font, size, width }: Appearance): Extension =>
+  EditorView.theme({
+    '&': { '--editor-font': font, '--editor-size': size, '--editor-width': width },
+  })
+
 /** Maximum width of the text column. */
-const contentWidth = '72ch'
+const contentWidth = 'var(--editor-width, 72ch)'
 
 /**
  * Space on either side of the text column, which centres it. Also valid in elements as wide as a
@@ -20,7 +36,7 @@ const radius = '0.375rem'
 const editorTheme = EditorView.theme({
   '&': {
     height: '100%',
-    fontSize: '1.0625rem',
+    fontSize: 'var(--editor-size, 1.0625rem)',
     color: 'var(--color-text)',
     backgroundColor: 'var(--color-bg)',
   },
@@ -28,7 +44,7 @@ const editorTheme = EditorView.theme({
     outline: 'none',
   },
   '.cm-scroller': {
-    fontFamily: 'inherit',
+    fontFamily: 'var(--editor-font, inherit)',
     lineHeight: '1.7',
   },
   '.cm-content': {
@@ -49,8 +65,8 @@ const editorTheme = EditorView.theme({
   '.cm-placeholder': {
     color: 'var(--color-muted)',
   },
-  // The find and replace panel, aligned with the text column. The panel keeps the editor's font
-  // size, so that `ch` in `lineInset` resolves the same as in lines, and sizes its controls instead.
+  // The find and replace panel, aligned with the text column. The panel keeps the text's font and
+  // size, so that `ch` in `lineInset` resolves the same as in lines, and styles its controls instead.
   '.cm-panels': {
     color: 'var(--color-muted)',
     backgroundColor: 'var(--color-bg)',
@@ -59,6 +75,7 @@ const editorTheme = EditorView.theme({
     borderBlockEnd: '1px solid var(--color-border)',
   },
   '.cm-panel.cm-search': {
+    fontFamily: 'var(--editor-font, inherit)',
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'center',
@@ -67,6 +84,7 @@ const editorTheme = EditorView.theme({
     paddingInline: lineInset,
     '& input, & button, & label': {
       margin: '0',
+      fontFamily: 'var(--font-sans)',
       fontSize: '0.875rem',
     },
     // Line break before the replace controls, which wraps them instead. "All" selects every match,

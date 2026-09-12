@@ -29,4 +29,28 @@ test.describe('preferences', () => {
     await page.getByText('Light', { exact: true }).click()
     await expect.poll(background).toBe('rgb(253, 253, 252)')
   })
+
+  test('set the text’s font, size and column width, which last', async ({ page }) => {
+    const line = page.getByRole('textbox', { name: 'Document' }).locator('.cm-line')
+    await page.keyboard.type('Text')
+    const style = () =>
+      line.evaluate((element) => {
+        const { fontFamily, fontSize, paddingInlineStart } = getComputedStyle(element)
+        return { fontFamily, fontSize, inset: parseFloat(paddingInlineStart) }
+      })
+    const before = await style()
+
+    await page.getByRole('button', { name: 'Preferences' }).click()
+    await page.getByText('Mono', { exact: true }).click()
+    await page.getByRole('button', { name: 'Larger text' }).click()
+    await page.getByRole('button', { name: 'Larger text' }).click()
+    await page.getByText('Narrow', { exact: true }).click()
+    await page.reload()
+
+    const after = await style()
+    expect(after.fontFamily).toContain('monospace')
+    expect(after.fontSize).toBe('19px')
+    // A narrower column leaves more space on either side, even in a wider font.
+    expect(after.inset).toBeGreaterThan(before.inset)
+  })
 })
