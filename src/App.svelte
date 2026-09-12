@@ -1,7 +1,8 @@
 <script lang="ts">
-  import type { Text } from '@codemirror/state'
+  import type { EditorSelection, Text } from '@codemirror/state'
   import ConfirmDialog from '$lib/dialog/ConfirmDialog.svelte'
   import { Confirmation } from '$lib/dialog/confirmation.svelte'
+  import { countString, countText, type Counts } from '$lib/editor/count'
   import { languageFor } from '$lib/editor/extensions'
   import Editor from '$lib/editor/Editor.svelte'
   import { Workspace } from '$lib/files/workspace.svelte'
@@ -14,6 +15,27 @@
   const onchange = (doc: Text): void => {
     workspace.file.content = doc
   }
+
+  /** Counts for the selected text, if any. */
+  let selected = $state.raw<Counts | null>(null)
+
+  // Called after `onchange`, so the content matches the selection.
+  const onselect = ({ main }: EditorSelection): void => {
+    selected = main.empty
+      ? null
+      : countString(workspace.file.content.sliceString(main.from, main.to))
+  }
+
+  const numbers = new Intl.NumberFormat()
+  /** "1,234 words", or "12 of 1,234 words" for a selection. */
+  const describe = (total: number, part: number | undefined, unit: string): string => {
+    const amount = `${numbers.format(total)} ${unit}${total === 1 ? '' : 's'}`
+    return part === undefined ? amount : `${numbers.format(part)} of ${amount}`
+  }
+
+  const counts = $derived(countText(workspace.file.content))
+  const words = $derived(describe(counts.words, selected?.words, 'word'))
+  const characters = $derived(describe(counts.characters, selected?.characters, 'character'))
 
   // Actions handle their own failures, so their promises need not be awaited.
   const newFile = (): void => {
@@ -68,6 +90,7 @@
   {#if workspace.error}
     <p class="error" role="alert">{workspace.error}</p>
   {/if}
+  <p title={characters}>{words}</p>
   <div class="actions">
     <button type="button" onclick={newFile}>New</button>
     <button type="button" onclick={open} aria-keyshortcuts="Control+O Meta+O">Open</button>
@@ -81,7 +104,12 @@
 <main>
   <!-- A new file gets a new editor, so it starts with fresh state such as undo history. -->
   {#key workspace.file}
-    <Editor doc={workspace.file.initial} language={languageFor(workspace.file.name)} {onchange} />
+    <Editor
+      doc={workspace.file.initial}
+      language={languageFor(workspace.file.name)}
+      {onchange}
+      {onselect}
+    />
   {/key}
 </main>
 

@@ -43,6 +43,25 @@ describe('App', () => {
     expect(document.title).toBe('• Untitled.md — typer')
   })
 
+  it('counts words and characters, or those selected', async () => {
+    render(App)
+    const count = screen.getByText('0 words')
+    expect(count).toHaveAttribute('title', '0 characters')
+
+    type('# One two\nthree')
+    await vi.waitFor(() => {
+      expect(count).toHaveTextContent('3 words')
+    })
+    expect(count).toHaveAttribute('title', '14 characters')
+
+    const view = EditorView.findFromDOM(screen.getByRole('textbox', { name: 'Document' }))
+    view?.dispatch({ selection: { anchor: 2, head: 5 } })
+    await vi.waitFor(() => {
+      expect(count).toHaveTextContent('1 of 3 words')
+    })
+    expect(count).toHaveAttribute('title', '3 of 14 characters')
+  })
+
   it.each([
     ['{Control>}s{/Control}', 'Ctrl+S'],
     ['{Meta>}s{/Meta}', '⌘S'],
