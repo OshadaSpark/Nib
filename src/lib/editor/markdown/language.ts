@@ -29,11 +29,15 @@ const parser = (markdownLanguage.parser as MarkdownParser).configure(parseCode({
  */
 const markdownWithCode = new Language(markdownLanguage.data, parser, [], 'markdown')
 
-/** Markdown support: the language, its editing commands and live rendering. */
-export const markdownSupport = new LanguageSupport(markdownWithCode, [
+const editing = [
   // Continues lists and blockquotes on Enter, and removes their markup on Backspace; formatting
   // shortcuts. High precedence, as they replace some default bindings.
   Prec.high(keymap.of([...markdownKeymap, ...formattingKeymap])),
   pasteURLAsLink,
-  livePreview,
-])
+]
+
+/** Markdown support: the language, its editing commands and live rendering. */
+export const markdownSupport = new LanguageSupport(markdownWithCode, [editing, livePreview])
+
+/** Markdown support without live rendering, which shows the Markdown as written (highlighted). */
+export const markdownSourceSupport = new LanguageSupport(markdownWithCode, editing)

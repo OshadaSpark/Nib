@@ -61,6 +61,10 @@
     </button>
   </div>
   <Segments label="Width" options={widthOptions} bind:value={preferences.width} />
+  <label class="check">
+    <input type="checkbox" bind:checked={preferences.livePreview} />
+    Render Markdown
+  </label>
 </div>
 
 <style>
@@ -100,6 +104,19 @@
 
   .label {
     color: var(--color-muted);
+  }
+
+  .check {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+
+    & input {
+      margin: 0;
+      accent-color: var(--color-accent);
+    }
   }
 
   .stepper {

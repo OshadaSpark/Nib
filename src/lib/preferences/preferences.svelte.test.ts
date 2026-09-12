@@ -14,9 +14,15 @@ const storageWith = (saved?: string): Storage => {
 }
 
 describe('Preferences', () => {
-  const defaults = { theme: 'system', font: 'sans', size: 17, width: 'medium' }
+  const defaults = { theme: 'system', font: 'sans', size: 17, width: 'medium', livePreview: true }
 
-  const values = ({ theme, font, size, width }: Preferences) => ({ theme, font, size, width })
+  const values = ({ theme, font, size, width, livePreview }: Preferences) => ({
+    theme,
+    font,
+    size,
+    width,
+    livePreview,
+  })
 
   it('starts from the defaults', () => {
     expect(values(new Preferences(storageWith()))).toEqual(defaults)
@@ -24,14 +30,14 @@ describe('Preferences', () => {
   })
 
   it('reads saved preferences', () => {
-    const saved = { theme: 'dark', font: 'serif', size: 20, width: 'wide' }
+    const saved = { theme: 'dark', font: 'serif', size: 20, width: 'wide', livePreview: false }
 
     expect(values(new Preferences(storageWith(JSON.stringify(saved))))).toEqual(saved)
   })
 
   it.each([
     '{"theme":"sepia","font":"comic","width":"huge"}',
-    '{"theme":1,"size":"20"}',
+    '{"theme":1,"size":"20","livePreview":"no"}',
     '{"size":13}',
     '{"size":25}',
     '{"size":17.5}',

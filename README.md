@@ -64,8 +64,8 @@ The editor is [CodeMirror 6](https://codemirror.net), configured in
   [attachment](https://svelte.dev/docs/svelte/@attach) and destroys it on unmount.
 - `extensions.ts` is a hand-picked set of extensions for writing prose. It stands in for
   `basicSetup`, which is aimed at code editing (line numbers, fold gutters, …).
-- `extensions.ts` also picks the language by file extension: Markdown for `.md` and `.markdown`,
-  plain text for everything else.
+- `extensions.ts` also picks the language by file extension: Markdown for `.md` and `.markdown`
+  (rendered live, unless turned off in the preferences), plain text for everything else.
 - `extensions.ts` includes find and replace from `@codemirror/search`, in a panel above the text that
   the theme restyles to match the app.
 - `markdown/` holds the Markdown support, which plain-text files don't load:
@@ -152,6 +152,9 @@ The button at the end of the header opens the preferences, a native popover
   wide: 60, 72 or 90 characters) of the text. Code keeps its monospace font. The editor sets them
   as custom properties through a theme of their own (`appearanceTheme` in `theme.ts`), so changing
   them makes CodeMirror measure the text again.
+- **Render Markdown:** turned off, Markdown files show as written, with their markup highlighted
+  rather than hidden (`markdownSourceSupport` in `markdown/language.ts`). The editing commands and
+  shortcuts stay.
 
 ## Installable app
 

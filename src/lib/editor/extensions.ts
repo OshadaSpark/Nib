@@ -15,7 +15,7 @@ import {
   keymap,
   placeholder,
 } from '@codemirror/view'
-import { markdownSupport } from './markdown/language'
+import { markdownSourceSupport, markdownSupport } from './markdown/language'
 import { theme } from './theme'
 
 /** Plain text needs no language extensions. */
@@ -23,9 +23,14 @@ const plainText: Extension = []
 
 const markdownFileName = /\.(?:md|markdown)$/i
 
-/** The language for a file, by its extension: Markdown or plain text. */
-export const languageFor = (fileName: string): Extension =>
-  markdownFileName.test(fileName) ? markdownSupport : plainText
+/**
+ * The language for a file, by its extension: Markdown, rendered live unless `livePreview` is off,
+ * or plain text.
+ */
+export const languageFor = (fileName: string, livePreview = true): Extension => {
+  if (!markdownFileName.test(fileName)) return plainText
+  return livePreview ? markdownSupport : markdownSourceSupport
+}
 
 /** Find and replace, in a panel above the text. */
 const findAndReplace: Extension = [

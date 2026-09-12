@@ -245,6 +245,21 @@ describe('App', () => {
     expect(document.documentElement).toHaveAttribute('data-theme', 'system')
   })
 
+  it('shows Markdown as written when live rendering is off', async () => {
+    const user = userEvent.setup()
+    render(App)
+    const textbox = screen.getByRole('textbox', { name: 'Document' })
+    type('Some **bold**')
+    editorView()?.dispatch({ selection: { anchor: 0 } })
+    await vi.waitFor(() => {
+      expect(textbox).toHaveTextContent(/^Some bold$/)
+    })
+
+    await user.click(screen.getByRole('checkbox', { name: 'Render Markdown', hidden: true }))
+
+    expect(textbox).toHaveTextContent('Some **bold**')
+  })
+
   it('starts a new file from the New button', async () => {
     const user = userEvent.setup()
     vi.mocked(openFile).mockResolvedValue(opened('notes.md', 'hi'))
