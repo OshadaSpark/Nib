@@ -95,6 +95,8 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
   [File System Access API](https://developer.mozilla.org/docs/Web/API/File_System_API) where it is
   available (Chromium-based browsers), so saving writes back to the opened file. Other browsers open
   files with a file input and save them as downloads.
+- `DropOverlay.svelte` opens files dropped anywhere on the page. In Chromium, the dropped file's
+  handle is kept, so saving writes back to it.
 - `textFile.svelte.ts` holds the open file. It tracks unsaved changes against the last saved content
   and restores the file's line breaks (LF or CRLF) on save, as CodeMirror normalises them to LF, and
   its UTF-8 byte-order mark, if it had one. Files that aren't valid UTF-8 text are refused rather
