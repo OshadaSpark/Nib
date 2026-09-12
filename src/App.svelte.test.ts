@@ -227,6 +227,24 @@ describe('App', () => {
     expect(readFile).toHaveBeenCalledWith(launched)
   })
 
+  it('applies and remembers the theme', async () => {
+    const user = userEvent.setup()
+    // jsdom has no popovers to open, so the preferences stay hidden.
+    const option = (name: string) => screen.getByRole('radio', { name, hidden: true })
+    const { unmount } = render(App)
+
+    await user.click(option('Dark'))
+
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute('content', '#19191b')
+    unmount()
+    render(App)
+    expect(option('Dark')).toBeChecked()
+
+    await user.click(option('System'))
+    expect(document.documentElement).toHaveAttribute('data-theme', 'system')
+  })
+
   it('starts a new file from the New button', async () => {
     const user = userEvent.setup()
     vi.mocked(openFile).mockResolvedValue(opened('notes.md', 'hi'))

@@ -35,6 +35,7 @@ pnpm dev
 src/
   lib/              Reusable components and modules, imported via `$lib/...`
     dialog/         The confirmation dialog
+    preferences/    The user's preferences and their panel
     editor/         The CodeMirror editor component, its extensions and theme
     files/          Opening and saving local files and folders, and the state of the open files
   App.svelte        Root component
@@ -139,6 +140,14 @@ checkbox toggles its task, and Alt+Enter does either at the cursor. Images show 
 URLs, and from relative paths in an open folder. Relative paths start from the file's directory, or
 from the folder if they start with `/`. Clicking a table shows its source, with the cursor in the
 clicked cell.
+
+## Preferences
+
+The button at the end of the header opens the preferences, a native popover
+([`src/lib/preferences/`](src/lib/preferences)). They apply at once, and are kept in local storage:
+
+- **Theme:** system, light or dark. A picked theme sets `data-theme` on the root element, which
+  `app.css` turns into a `color-scheme`, so every `light-dark()` colour follows it.
 
 ## Installable app
 
