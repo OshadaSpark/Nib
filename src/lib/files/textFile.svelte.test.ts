@@ -1,6 +1,6 @@
 import { Text } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
-import { TextFile } from './textFile.svelte'
+import { decodeText, TextFile } from './textFile.svelte'
 
 const edit = (file: TextFile, insert: string): Text =>
   file.content.replace(file.content.length, file.content.length, Text.of([insert]))
@@ -60,5 +60,28 @@ describe('TextFile', () => {
     const file = new TextFile('notes.txt', 'a\r\nb')
 
     expect(file.serialize(Text.of(['x', 'y', 'z']))).toBe('x\r\ny\r\nz')
+  })
+
+  it('keeps a byte-order mark out of the content, and restores it when serialized', () => {
+    const file = new TextFile('notes.md', '\uFEFF# Notes')
+
+    expect(file.content.toString()).toBe('# Notes')
+    expect(file.serialize()).toBe('\uFEFF# Notes')
+  })
+})
+
+describe('decodeText', () => {
+  const bytes = (...values: number[]): ArrayBuffer => new Uint8Array(values).buffer
+
+  it('decodes UTF-8, keeping a byte-order mark', () => {
+    expect(decodeText(bytes(0xef, 0xbb, 0xbf, 0x68, 0xc3, 0xa9))).toBe('\uFEFFhé')
+    expect(decodeText(bytes(0x68, 0x69))).toBe('hi')
+  })
+
+  it.each([
+    ['invalid UTF-8', bytes(0x68, 0xe9, 0x74, 0xe9)],
+    ['NUL characters', bytes(0x50, 0x4b, 0x03, 0x04, 0x00, 0x00)],
+  ])('refuses %s', (_, input) => {
+    expect(decodeText(input)).toBeNull()
   })
 })

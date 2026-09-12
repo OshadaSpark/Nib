@@ -2,11 +2,10 @@ import { Text } from '@codemirror/state'
 import type { Confirm } from '$lib/dialog/confirmation.svelte'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { openFile, saveFile } from './fileAccess'
+import { handle, opened } from './testFiles'
 import { Workspace } from './workspace.svelte'
 
 vi.mock('./fileAccess')
-
-const handle = (name: string): FileSystemFileHandle => ({ name }) as FileSystemFileHandle
 
 /** Replaces the content of the workspace's file, as typing in the editor would. */
 const type = (workspace: Workspace, text: string): void => {
@@ -37,7 +36,7 @@ describe('Workspace', () => {
   describe('open', () => {
     it('replaces the file with the one the user picks', async () => {
       const notes = handle('notes.txt')
-      vi.mocked(openFile).mockResolvedValue({ name: 'notes.txt', text: 'hello', handle: notes })
+      vi.mocked(openFile).mockResolvedValue(opened('notes.txt', 'hello', notes))
 
       await workspace.open()
 
@@ -57,7 +56,7 @@ describe('Workspace', () => {
 
     it('asks before discarding unsaved changes', async () => {
       confirm.mockResolvedValue(false)
-      vi.mocked(openFile).mockResolvedValue({ name: 'other.md', text: '', handle: null })
+      vi.mocked(openFile).mockResolvedValue(opened('other.md', ''))
       type(workspace, 'unsaved')
 
       await workspace.open()
@@ -75,7 +74,7 @@ describe('Workspace', () => {
           answer = resolve
         }),
       )
-      vi.mocked(openFile).mockResolvedValue({ name: 'other.md', text: '', handle: null })
+      vi.mocked(openFile).mockResolvedValue(opened('other.md', ''))
       type(workspace, 'unsaved')
 
       const opening = workspace.open()
@@ -90,6 +89,20 @@ describe('Workspace', () => {
       expect(workspace.file.name).toBe('other.md')
     })
 
+    it('refuses files that aren’t UTF-8 text', async () => {
+      const { file } = workspace
+      vi.mocked(openFile).mockResolvedValue({
+        name: 'photo.png',
+        bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0xff]).buffer,
+        handle: null,
+      })
+
+      await workspace.open()
+
+      expect(workspace.error).toBe('photo.png isn’t a UTF-8 text file.')
+      expect(workspace.file).toBe(file)
+    })
+
     it('reports failures', async () => {
       vi.mocked(openFile).mockRejectedValue(new DOMException('Denied', 'NotAllowedError'))
 
@@ -102,7 +115,7 @@ describe('Workspace', () => {
   describe('save', () => {
     it('saves to the file’s handle and marks it clean', async () => {
       const notes = handle('notes.md')
-      vi.mocked(openFile).mockResolvedValue({ name: 'notes.md', text: 'a\r\nb', handle: notes })
+      vi.mocked(openFile).mockResolvedValue(opened('notes.md', 'a\r\nb', notes))
       vi.mocked(saveFile).mockResolvedValue({ name: 'notes.md', handle: notes })
       await workspace.open()
       type(workspace, 'a\nb\nc')
@@ -167,7 +180,7 @@ describe('Workspace', () => {
   describe('saveAs', () => {
     it('asks where to save even when the file has a handle', async () => {
       const notes = handle('notes.md')
-      vi.mocked(openFile).mockResolvedValue({ name: 'notes.md', text: '', handle: notes })
+      vi.mocked(openFile).mockResolvedValue(opened('notes.md', '', notes))
       vi.mocked(saveFile).mockResolvedValue({ name: 'copy.md', handle: handle('copy.md') })
       await workspace.open()
 
@@ -180,7 +193,7 @@ describe('Workspace', () => {
 
   describe('newFile', () => {
     it('replaces the file with an empty, untitled one', async () => {
-      vi.mocked(openFile).mockResolvedValue({ name: 'notes.md', text: 'hi', handle: null })
+      vi.mocked(openFile).mockResolvedValue(opened('notes.md', 'hi'))
       await workspace.open()
 
       await workspace.newFile()

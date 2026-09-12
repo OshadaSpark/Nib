@@ -89,7 +89,9 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
   available (Chromium-based browsers), so saving writes back to the opened file. Other browsers open
   files with a file input and save them as downloads.
 - `textFile.svelte.ts` holds the open file. It tracks unsaved changes against the last saved content
-  and restores the file's line breaks (LF or CRLF) on save, as CodeMirror normalises them to LF.
+  and restores the file's line breaks (LF or CRLF) on save, as CodeMirror normalises them to LF, and
+  its UTF-8 byte-order mark, if it had one. Files that aren't valid UTF-8 text are refused rather
+  than opened with replacement characters, which saving would write back.
 - `workspace.svelte.ts` implements New, Open, Save and Save as. It asks before discarding unsaved
   changes, and reports failures in the header.
 
