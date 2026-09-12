@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { Preferences, Theme } from './preferences.svelte'
+  import { sizes, type Font, type Preferences, type Theme, type Width } from './preferences.svelte'
+  import Segments from './Segments.svelte'
 
   interface Props {
     /**
@@ -17,26 +18,49 @@
     ['light', 'Light'],
     ['dark', 'Dark'],
   ]
+  const fontOptions: [Font, string][] = [
+    ['sans', 'Sans'],
+    ['serif', 'Serif'],
+    ['mono', 'Mono'],
+  ]
+  const widthOptions: [Width, string][] = [
+    ['narrow', 'Narrow'],
+    ['medium', 'Medium'],
+    ['wide', 'Wide'],
+  ]
+
+  const smaller = (): void => {
+    preferences.size = Math.max(sizes.min, preferences.size - 1)
+  }
+  const larger = (): void => {
+    preferences.size = Math.min(sizes.max, preferences.size + 1)
+  }
 </script>
 
 <div {id} popover="auto" role="dialog" aria-label="Preferences">
-  <div class="row">
-    <span id="{id}-theme">Theme</span>
-    <div class="segments" role="radiogroup" aria-labelledby="{id}-theme">
-      {#each themeOptions as [value, label] (value)}
-        <label>
-          <input
-            type="radio"
-            class="visually-hidden"
-            name="{id}-theme"
-            {value}
-            bind:group={preferences.theme}
-          />
-          <span>{label}</span>
-        </label>
-      {/each}
-    </div>
+  <Segments label="Theme" options={themeOptions} bind:value={preferences.theme} />
+  <Segments label="Font" options={fontOptions} bind:value={preferences.font} />
+  <span id="{id}-size" class="label">Size</span>
+  <div class="stepper" role="group" aria-labelledby="{id}-size">
+    <button
+      type="button"
+      aria-label="Smaller text"
+      disabled={preferences.size <= sizes.min}
+      onclick={smaller}
+    >
+      −
+    </button>
+    <output aria-live="polite">{preferences.size}</output>
+    <button
+      type="button"
+      aria-label="Larger text"
+      disabled={preferences.size >= sizes.max}
+      onclick={larger}
+    >
+      +
+    </button>
   </div>
+  <Segments label="Width" options={widthOptions} bind:value={preferences.width} />
 </div>
 
 <style>
@@ -55,7 +79,9 @@
     }
 
     display: none;
-    gap: 0.75rem;
+    grid-template-columns: auto auto;
+    align-items: center;
+    gap: 0.75rem 1.5rem;
     inline-size: max-content;
     max-inline-size: calc(100vw - 1.5rem);
     margin: 0;
@@ -72,36 +98,28 @@
     }
   }
 
-  .row {
-    display: grid;
-    grid-template-columns: 4rem auto;
-    align-items: center;
-    gap: 1rem;
+  .label {
     color: var(--color-muted);
   }
 
-  .segments {
+  .stepper {
     display: flex;
-    padding: 0.125rem;
-    border-radius: 0.5rem;
-    background-color: var(--color-hover);
+    align-items: center;
+    justify-content: space-between;
 
-    & span {
-      display: block;
-      padding: 0.25rem 0.75rem;
-      border-radius: 0.375rem;
-      color: var(--color-muted);
-      cursor: pointer;
+    & button {
+      inline-size: 2rem;
+      padding-inline: 0;
+      font-size: 1rem;
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
     }
 
-    & input:checked + span {
-      color: var(--color-text);
-      background-color: var(--color-bg);
-      box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
-    }
-
-    & input:focus-visible + span {
-      outline: 2px solid var(--color-accent);
+    & output {
+      font-variant-numeric: tabular-nums;
     }
   }
 </style>

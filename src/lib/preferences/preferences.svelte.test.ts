@@ -14,30 +14,43 @@ const storageWith = (saved?: string): Storage => {
 }
 
 describe('Preferences', () => {
+  const defaults = { theme: 'system', font: 'sans', size: 17, width: 'medium' }
+
+  const values = ({ theme, font, size, width }: Preferences) => ({ theme, font, size, width })
+
   it('starts from the defaults', () => {
-    expect(new Preferences(storageWith()).theme).toBe('system')
-    expect(new Preferences(null).theme).toBe('system')
+    expect(values(new Preferences(storageWith()))).toEqual(defaults)
+    expect(values(new Preferences(null))).toEqual(defaults)
   })
 
   it('reads saved preferences', () => {
-    expect(new Preferences(storageWith('{"theme":"dark"}')).theme).toBe('dark')
+    const saved = { theme: 'dark', font: 'serif', size: 20, width: 'wide' }
+
+    expect(values(new Preferences(storageWith(JSON.stringify(saved))))).toEqual(saved)
   })
 
-  it.each(['{"theme":"sepia"}', '{"theme":1}', 'null', '[1]', 'not JSON'])(
-    'keeps the defaults for %j',
-    (saved) => {
-      expect(new Preferences(storageWith(saved)).theme).toBe('system')
-    },
-  )
+  it.each([
+    '{"theme":"sepia","font":"comic","width":"huge"}',
+    '{"theme":1,"size":"20"}',
+    '{"size":13}',
+    '{"size":25}',
+    '{"size":17.5}',
+    'null',
+    '[1]',
+    'not JSON',
+  ])('keeps the defaults for %j', (saved) => {
+    expect(values(new Preferences(storageWith(saved)))).toEqual(defaults)
+  })
 
   it('saves preferences', () => {
     const storage = storageWith()
     const preferences = new Preferences(storage)
 
     preferences.theme = 'light'
+    preferences.size = 14
     preferences.save()
 
-    expect(new Preferences(storage).theme).toBe('light')
+    expect(values(new Preferences(storage))).toEqual({ ...defaults, theme: 'light', size: 14 })
   })
 
   it('carries on when storage is full or blocked', () => {

@@ -54,6 +54,8 @@ export default defineConfig(
       // Rune-aware replacement for the core rule (e.g. allows `let` for reassigned `$derived`).
       'prefer-const': 'off',
       'svelte/prefer-const': 'error',
+      // Bindable props are declared with a default, `$bindable()`, even when they are required.
+      '@typescript-eslint/no-useless-default-assignment': 'off',
     },
   },
 

@@ -8,13 +8,14 @@
   import { languageFor } from '$lib/editor/extensions'
   import { localFiles } from '$lib/editor/markdown/links'
   import Editor from '$lib/editor/Editor.svelte'
+  import type { Appearance } from '$lib/editor/theme'
   import type { EditorSnapshot } from '$lib/editor/snapshot'
   import DropOverlay from '$lib/files/DropOverlay.svelte'
   import { canOpenFolders, readFile, type OpenedFile } from '$lib/files/fileAccess'
   import FileTree from '$lib/files/FileTree.svelte'
   import type { TextFile } from '$lib/files/textFile.svelte'
   import { Workspace } from '$lib/files/workspace.svelte'
-  import { Preferences } from '$lib/preferences/preferences.svelte'
+  import { Preferences, type Width } from '$lib/preferences/preferences.svelte'
   import PreferencesPanel from '$lib/preferences/PreferencesPanel.svelte'
 
   const confirmation = new Confirmation()
@@ -37,6 +38,15 @@
   // The page follows the system's colour scheme unless the user picked one (see `app.css`).
   $effect(() => {
     document.documentElement.dataset.theme = preferences.theme
+  })
+
+  /** The text column's width for each preference, in `ch` of the text's font. */
+  const columnWidths: Record<Width, string> = { narrow: '60ch', medium: '72ch', wide: '90ch' }
+
+  const appearance: Appearance = $derived({
+    font: `var(--font-${preferences.font})`,
+    size: `${String(preferences.size / 16)}rem`,
+    width: columnWidths[preferences.width],
   })
 
   const systemDark = new MediaQuery('(prefers-color-scheme: dark)')
@@ -240,6 +250,7 @@
       onleave={keepSnapshot(workspace.file)}
       language={languageFor(workspace.file.name)}
       extensions={folderFiles}
+      {appearance}
       {onchange}
       {onselect}
     />
