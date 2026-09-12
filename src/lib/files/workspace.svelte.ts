@@ -8,7 +8,7 @@ import {
   saveFile,
   type OpenedFile,
 } from './fileAccess'
-import { Folder, isValidName, parentOf } from './folder.svelte'
+import { Folder, isValidName, parentOf, resolvePath } from './folder.svelte'
 import { decodeText, TextFile } from './textFile.svelte'
 
 const untitledName = 'Untitled.md'
@@ -90,6 +90,7 @@ export class Workspace {
       if (!handle || !(await this.#confirmDiscardAll())) return
       const folder = new Folder(handle)
       await folder.list()
+      this.folder?.close()
       this.folder = folder
       this.opened.clear()
       this.file = new TextFile(untitledName)
@@ -123,6 +124,25 @@ export class Workspace {
     })
     // A file opened before may have changed on disk since.
     await this.checkDisk()
+  }
+
+  /** Opens the note a relative link in the open file points to. Returns whether there is one. */
+  openLink(target: string): boolean {
+    const path = this.#linked(target)
+    if (path !== null) void this.openPath(path)
+    return path !== null
+  }
+
+  /** A URL to show the image at a relative `src` in the open file with, or `null` if none. */
+  async imageURL(src: string): Promise<string | null> {
+    const path = this.#linked(src)
+    return path === null ? null : ((await this.folder?.imageURL(path)) ?? null)
+  }
+
+  /** The folder path a relative link or image in the open file points to, if it is in the folder. */
+  #linked(target: string): string | null {
+    const { folder, file } = this
+    return folder && file.path !== null ? resolvePath(file.path, target) : null
   }
 
   /** Saves to the open file, or asks where to save if it has not been saved before. */

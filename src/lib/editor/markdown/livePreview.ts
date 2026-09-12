@@ -34,7 +34,7 @@ export const toggleTask = (state: EditorState, pos: number): TransactionSpec | n
 const activate: Command = (view) => {
   const { state } = view
   const { head } = state.selection.main
-  if (openLink(linkAt(state, head, 1) ?? linkAt(state, head, -1))) return true
+  if (openLink(state, linkAt(state, head, 1) ?? linkAt(state, head, -1))) return true
   const toggle = toggleTask(state, head)
   if (toggle) view.dispatch(toggle)
   return toggle !== null
@@ -85,7 +85,7 @@ export const livePreview: Extension = [
       if (!(event.metaKey || event.ctrlKey)) return false
       const link = event.target.closest('.cm-link')
       // The start of the clicked link's text maps to a position inside the link.
-      return link !== null && openLink(linkAt(view.state, view.posAtDOM(link)))
+      return link !== null && openLink(view.state, linkAt(view.state, view.posAtDOM(link)))
     },
   }),
 ]

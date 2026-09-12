@@ -558,6 +558,30 @@ describe('Workspace', () => {
       expect(workspace.opened.size).toBe(0)
     })
 
+    it('opens notes that relative links in the open file point to', async () => {
+      await openNotes()
+      expect(workspace.openLink('ideas.md')).toBe(false)
+      await workspace.openPath('journal/today.md')
+
+      expect(workspace.openLink('../ideas.md#top')).toBe(true)
+
+      await vi.waitFor(() => {
+        expect(workspace.file.path).toBe('ideas.md')
+      })
+      expect(workspace.openLink('../../outside.md')).toBe(false)
+    })
+
+    it('gives URLs for images relative to the open file', async () => {
+      vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:cat')
+      const notes = await openNotes()
+      await (await notes.getDirectoryHandle('journal')).getFileHandle('cat.png', { create: true })
+      expect(await workspace.imageURL('journal/cat.png')).toBeNull()
+      await workspace.openPath('journal/today.md')
+
+      expect(await workspace.imageURL('cat.png')).toBe('blob:cat')
+      expect(await workspace.imageURL('dog.png')).toBeNull()
+    })
+
     it('lists the folder again when checking for changes on disk', async () => {
       const notes = await openNotes()
       await notes.getFileHandle('added.md', { create: true })

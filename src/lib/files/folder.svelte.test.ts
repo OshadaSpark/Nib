@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { Folder, parentOf, type DirectoryNode, type TreeNode } from './folder.svelte'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { Folder, parentOf, resolvePath, type DirectoryNode, type TreeNode } from './folder.svelte'
 import { fakeFolder, fakeText } from './testFiles'
 
 const names = (directory: DirectoryNode): string[] =>
@@ -168,6 +168,68 @@ describe('Folder file operations', () => {
 
     expect(fakeText(handle, 'a.md')).toBeUndefined()
     expect(names(folder.root)).toEqual(['journal'])
+  })
+})
+
+describe('Folder images', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('makes a URL for each image once, until it changes or the folder closes', async () => {
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:cat')
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue()
+    const handle = fakeFolder('Notes', { img: { 'cat.png': 'meow' } })
+    const folder = new Folder(handle)
+
+    expect(await folder.imageURL('img/cat.png')).toBe('blob:cat')
+    expect(await folder.imageURL('img/cat.png')).toBe('blob:cat')
+    expect(create).toHaveBeenCalledOnce()
+    expect(await folder.imageURL('img/dog.png')).toBeNull()
+
+    const cat = await (await handle.getDirectoryHandle('img')).getFileHandle('cat.png')
+    const writable = await cat.createWritable()
+    await writable.write('purr')
+    await writable.close()
+    await folder.imageURL('img/cat.png')
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(revoke).toHaveBeenCalledOnce()
+
+    folder.close()
+    expect(revoke).toHaveBeenCalledTimes(2)
+  })
+
+  it('has no URL for images it can’t read', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const handle = fakeFolder('Notes', { 'cat.png': 'meow' })
+    const cat = await handle.getFileHandle('cat.png')
+    vi.spyOn(cat, 'getFile').mockRejectedValue(new DOMException('Busy', 'NotReadableError'))
+
+    expect(await new Folder(handle).imageURL('cat.png')).toBeNull()
+  })
+})
+
+describe('resolvePath', () => {
+  it.each([
+    ['a.md', 'b.md', 'b.md'],
+    ['notes/a.md', 'b.md', 'notes/b.md'],
+    ['notes/a.md', './img/cat.png', 'notes/img/cat.png'],
+    ['notes/a.md', '../b.md', 'b.md'],
+    ['notes/a.md', '/b.md', 'b.md'],
+    ['a.md', 'my%20note.md#heading', 'my note.md'],
+    ['a.md', 'b.md?x=1', 'b.md'],
+    ['a.md', '100%.md', '100%.md'],
+  ])('resolves %j + %j to %j', (from, target, expected) => {
+    expect(resolvePath(from, target)).toBe(expected)
+  })
+
+  it.each([
+    ['a.md', '../b.md'],
+    ['a.md', '#heading'],
+    ['notes/a.md', '#heading'],
+    ['a.md', 'notes/'],
+  ])('finds nothing in the folder for %j + %j', (from, target) => {
+    expect(resolvePath(from, target)).toBeNull()
   })
 })
 
