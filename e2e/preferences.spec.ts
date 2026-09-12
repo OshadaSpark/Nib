@@ -1,17 +1,25 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+/** Opens the settings from the More menu. */
+const openSettings = async (page: Page): Promise<void> => {
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Settings' }).click()
+}
 
 test.describe('settings', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
   })
 
-  test('open from the header and on ⌘/Ctrl+comma, and close on Escape', async ({ page }) => {
+  test('open from the More menu and on ⌘/Ctrl+comma, and close on Escape', async ({ page }) => {
     const settings = page.getByRole('dialog', { name: 'Settings' })
 
-    await page.getByRole('button', { name: 'Settings' }).click()
+    await openSettings(page)
     await expect(settings).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(settings).toBeHidden()
+    // Gone once its `close` event (which comes a task later) is handled, and ready to open again.
+    await expect(page.locator('dialog')).toHaveCount(0)
 
     await page.keyboard.press('ControlOrMeta+Comma')
     await expect(settings).toBeVisible()
@@ -21,13 +29,13 @@ test.describe('settings', () => {
     const background = () =>
       page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)
 
-    await page.getByRole('button', { name: 'Settings' }).click()
+    await openSettings(page)
     await page.getByText('Dark', { exact: true }).click()
     await expect.poll(background).toBe('rgb(25, 25, 27)')
     await page.reload()
     await expect.poll(background).toBe('rgb(25, 25, 27)')
 
-    await page.getByRole('button', { name: 'Settings' }).click()
+    await openSettings(page)
     await page.getByText('Light', { exact: true }).click()
     await expect.poll(background).toBe('rgb(253, 253, 252)')
   })
@@ -42,7 +50,7 @@ test.describe('settings', () => {
       })
     const before = await style()
 
-    await page.getByRole('button', { name: 'Settings' }).click()
+    await openSettings(page)
     await page.getByText('Mono', { exact: true }).click()
     await page.getByRole('button', { name: 'Larger text' }).click()
     await page.getByRole('button', { name: 'Larger text' }).click()
@@ -62,7 +70,7 @@ test.describe('settings', () => {
     await page.keyboard.press('Home')
     await expect(line).toHaveText('Some bold')
 
-    await page.getByRole('button', { name: 'Settings' }).click()
+    await openSettings(page)
     await page.getByRole('switch', { name: 'Render Markdown' }).uncheck()
 
     await expect(line).toHaveText('Some **bold**')
@@ -82,7 +90,7 @@ test.describe('settings', () => {
         })
     const before = await textStart()
 
-    await page.getByRole('button', { name: 'Settings' }).click()
+    await openSettings(page)
     await page.getByRole('switch', { name: 'Line numbers' }).check()
     await page.keyboard.press('Escape')
 
@@ -98,7 +106,7 @@ test.describe('settings', () => {
   test('turn the status bar’s items on and off, which lasts', async ({ page }) => {
     const status = page.getByRole('contentinfo')
 
-    await page.getByRole('button', { name: 'Settings' }).click()
+    await openSettings(page)
     await page.getByRole('switch', { name: 'Cursor position' }).check()
     await page.getByRole('switch', { name: 'Characters' }).uncheck()
     await page.reload()

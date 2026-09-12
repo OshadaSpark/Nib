@@ -150,8 +150,8 @@ const editorTheme = EditorView.theme({
       fontSize: '0.875rem',
     },
     // Line break before the replace controls, which wraps them instead. "All" selects every match,
-    // which needs multiple selections.
-    '& br, & [name=select]': {
+    // which needs multiple selections. The toolbar's find tool and Escape close the panel.
+    '& br, & [name=select], & [name=close]': {
       display: 'none',
     },
     // Moves the replace controls to a second row: this full-width item comes between the rows.
@@ -162,13 +162,6 @@ const editorTheme = EditorView.theme({
     },
     '& [name=replace], & [name=replaceAll]': {
       order: '2',
-    },
-    '& [name=close]': {
-      position: 'static',
-      marginInlineStart: 'auto',
-      paddingInline: '0.5rem',
-      fontSize: '1.125rem',
-      lineHeight: '1.25',
     },
     '& label': {
       display: 'inline-flex',

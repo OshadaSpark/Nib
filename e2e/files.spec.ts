@@ -175,7 +175,7 @@ test.describe('with the File System Access API', () => {
     await runCommand(page, 'Open folder')
     await page
       .getByRole('navigation', { name: 'Files' })
-      .getByRole('button', { name: 'index.md' })
+      .getByRole('button', { name: 'index.md', exact: true })
       .click()
 
     const image = page.getByRole('img', { name: 'A dot' })

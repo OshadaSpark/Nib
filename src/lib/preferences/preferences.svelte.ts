@@ -76,7 +76,7 @@ export class Preferences {
   livePreview: boolean = $state(true)
   lineNumbers: boolean = $state(false)
   spellcheck: boolean = $state(true)
-  /** Whether the Markdown toolbar shows under the header. */
+  /** Whether the toolbar has the formatting tools, for Markdown files. */
   toolbar: boolean = $state(true)
   /** Whether the header, toolbar and status bar fade while the user writes. */
   fadeWhileWriting: boolean = $state(true)

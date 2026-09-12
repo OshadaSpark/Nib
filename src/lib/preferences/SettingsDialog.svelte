@@ -92,7 +92,7 @@
       <Switch label="Render Markdown" bind:checked={preferences.livePreview} />
       <Switch label="Line numbers" bind:checked={preferences.lineNumbers} />
       <Switch label="Check spelling" bind:checked={preferences.spellcheck} />
-      <Switch label="Formatting toolbar" bind:checked={preferences.toolbar} />
+      <Switch label="Formatting tools" bind:checked={preferences.toolbar} />
       <Switch label="Fade controls while writing" bind:checked={preferences.fadeWhileWriting} />
     </section>
 

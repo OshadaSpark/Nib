@@ -1,5 +1,8 @@
 <script lang="ts">
+  import type { EditorView } from '@codemirror/view'
+  import Toolbar from '$lib/editor/Toolbar.svelte'
   import { canOpenFolders } from '$lib/files/fileAccess'
+  import { isMarkdownName } from '$lib/files/fileTypes'
   import type { Workspace } from '$lib/files/workspace.svelte'
   import type { Preferences } from '$lib/preferences/preferences.svelte'
   import SettingsDialog from '$lib/preferences/SettingsDialog.svelte'
@@ -13,11 +16,24 @@
     filesShown: boolean
     /** The file tree's id, for the button that shows and hides it. */
     filesId: string
+    /** The editor, for the toolbar. */
+    view: EditorView | null
+    /** Whether the editor's find and replace panel is open. */
+    searchShown: boolean
   }
 
-  let { workspace, preferences, filesShown = $bindable(), filesId }: Props = $props()
+  let {
+    workspace,
+    preferences,
+    filesShown = $bindable(),
+    filesId,
+    view,
+    searchShown,
+  }: Props = $props()
 
   const menuId = 'file-menu'
+  /** The header's width, which the toolbar fits its tools to. */
+  let width = $state(0)
   let settingsOpen = $state(false)
 
   // Actions handle their own failures, so their promises need not be awaited.
@@ -88,11 +104,12 @@
 
 <svelte:window {onkeydown} />
 
-<header>
+<!-- The file's name at the start, with its menu, and the toolbar in the rest of the row. -->
+<header bind:clientWidth={width}>
   {#if workspace.folder}
     <button
       type="button"
-      class="icon-button files"
+      class="icon-button"
       aria-label="Files"
       aria-expanded={filesShown}
       aria-controls={filesId}
@@ -101,26 +118,23 @@
       <Icon name="sidebar" />
     </button>
   {/if}
-  <p class="file truncate">{workspace.file.name}</p>
-  <div class="actions">
-    <button type="button" class="icon-button menu" popovertarget={menuId} aria-label="File">
-      <Icon name="more" />
-    </button>
-    <button
-      type="button"
-      class="icon-button"
-      aria-label="Settings"
-      aria-keyshortcuts={keyShortcuts(',')}
-      title="Settings ({shortcut(',')})"
-      onclick={openSettings}
-    >
-      <Icon name="sliders" />
+  <div class="title">
+    <p class="file truncate" title={workspace.file.name}>{workspace.file.name}</p>
+    <button type="button" class="icon-button file-menu" popovertarget={menuId} aria-label="File">
+      <Icon name="caret" />
     </button>
   </div>
+  <Toolbar
+    {view}
+    formatting={preferences.toolbar && isMarkdownName(workspace.file.name)}
+    {searchShown}
+    onsettings={openSettings}
+    room={width}
+  />
 </header>
 
 <!-- Each command closes the menu as it runs. -->
-<div id={menuId} class="popover" popover="auto" role="group" aria-label="File">
+<div id={menuId} class="popover menu" popover="auto" role="group" aria-label="File">
   {#each commands as group, index (index)}
     {#if index > 0}<hr />{/if}
     {#each group as command (command.label)}
@@ -144,66 +158,42 @@
 <SettingsDialog bind:open={settingsOpen} {preferences} />
 
 <style>
-  /* The file's name in the middle, between the files button and the actions. */
   header {
     grid-area: header;
-    display: grid;
-    grid-template-columns: 1fr minmax(0, auto) 1fr;
+    display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.25rem;
     block-size: var(--bar-height);
     padding-inline: 0.5rem;
     font-size: 0.875rem;
     color: var(--color-subtle);
   }
 
-  .files {
-    grid-column: 1;
+  /* Takes what the toolbar leaves, cutting a long name short. */
+  .title {
+    display: flex;
+    align-items: center;
+    min-inline-size: 0;
   }
 
   .file {
-    grid-column: 2;
     margin: 0;
+    padding-inline-start: 0.375rem;
     color: var(--color-text);
     font-weight: 500;
   }
 
-  .actions {
-    grid-column: 3;
-    justify-self: end;
-    display: flex;
-  }
-
-  /* The file menu opens under this. */
-  .menu {
+  /* The file menu opens under this, towards the end. */
+  .file-menu {
+    flex: none;
     anchor-name: --file-menu;
   }
 
   [popover] {
     position-anchor: --file-menu;
-    min-inline-size: 13rem;
 
-    &:popover-open {
-      display: grid;
+    @supports (position-area: block-end) {
+      position-area: block-end span-inline-end;
     }
-
-    & button {
-      display: flex;
-      justify-content: space-between;
-      gap: 2rem;
-      padding: 0.375rem 0.625rem;
-      text-align: start;
-    }
-
-    & hr {
-      margin: 0.375rem 0.625rem;
-      border: none;
-      border-block-start: 1px solid var(--color-border);
-    }
-  }
-
-  kbd {
-    font: inherit;
-    color: var(--color-muted);
   }
 </style>

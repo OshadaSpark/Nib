@@ -70,7 +70,6 @@ const findAndReplace: Extension = [
     'by word': 'Whole word',
     replace: 'Replace',
     'replace all': 'Replace all',
-    close: 'Close',
   }),
 ]
 
