@@ -36,3 +36,11 @@ window.matchMedia = (query: string): MediaQueryList =>
 // the selection into view).
 Range.prototype.getClientRects = () => [] as unknown as DOMRectList
 Range.prototype.getBoundingClientRect = () => new DOMRect()
+
+// jsdom has no layout, so nothing resizes: elements keep a width of 0 (Svelte measures bound sizes,
+// such as the header's, with a resize observer).
+window.ResizeObserver = class {
+  observe = (): undefined => undefined
+  unobserve = (): undefined => undefined
+  disconnect = (): undefined => undefined
+}

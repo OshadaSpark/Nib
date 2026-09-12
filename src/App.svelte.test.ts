@@ -24,8 +24,13 @@ const type = (text: string): void => {
   view?.dispatch({ changes: { from: view.state.doc.length, insert: text } })
 }
 
-/** A command in the file menu, hidden as jsdom has no popovers to open. */
+/** A command in a menu, hidden as jsdom has no popovers to open. */
 const command = (name: string): HTMLElement => screen.getByRole('button', { name, hidden: true })
+
+/** Gives the header `width` pixels, as jsdom has no layout, for the toolbar to fit its tools to. */
+const layOut = (width: number): void => {
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(width)
+}
 
 /** Waits for the editor to show `text`. */
 const shows = (text: string): Promise<void> =>
@@ -90,7 +95,7 @@ describe('App', () => {
     const status = await screen.findByRole('contentinfo')
     expect(status).toHaveTextContent(/^Saved/)
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(command('Settings'))
     for (const name of ['Cursor position', 'File type', 'Line endings', 'Encoding']) {
       await user.click(screen.getByRole('switch', { name }))
     }
@@ -261,11 +266,11 @@ describe('App', () => {
     expect(readFile).toHaveBeenCalledWith(launched)
   })
 
-  it('opens the settings from the header and on Ctrl+,', async () => {
+  it('opens the settings from the More menu and on Ctrl+,', async () => {
     const user = userEvent.setup()
     render(App)
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(command('Settings'))
     const settings = screen.getByRole('dialog', { name: 'Settings' })
     await user.click(within(settings).getByRole('button', { name: 'Close' }))
     expect(settings).not.toBeInTheDocument()
@@ -278,7 +283,7 @@ describe('App', () => {
     const user = userEvent.setup()
     const option = (name: string) => screen.getByRole('radio', { name })
     const { unmount } = render(App)
-    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(command('Settings'))
 
     await user.click(option('Dark'))
 
@@ -286,7 +291,7 @@ describe('App', () => {
     expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute('content', '#19191b')
     unmount()
     render(App)
-    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(command('Settings'))
     expect(option('Dark')).toBeChecked()
 
     await user.click(option('System'))
@@ -303,7 +308,7 @@ describe('App', () => {
       expect(textbox).toHaveTextContent(/^Some bold$/)
     })
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(command('Settings'))
     await user.click(screen.getByRole('switch', { name: 'Render Markdown' }))
 
     expect(textbox).toHaveTextContent('Some **bold**')
@@ -315,7 +320,7 @@ describe('App', () => {
     type('one\ntwo')
     expect(document.querySelector('.cm-lineNumbers')).toBeNull()
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    await user.click(command('Settings'))
     await user.click(screen.getByRole('switch', { name: 'Line numbers' }))
 
     expect(document.querySelector('.cm-lineNumbers')).toHaveTextContent('12')
@@ -323,9 +328,10 @@ describe('App', () => {
 
   it('formats Markdown from the toolbar, which plain text files only get editing tools in', async () => {
     const user = userEvent.setup()
+    layOut(1280)
     vi.mocked(openFile).mockResolvedValue(opened('notes.txt', 'hi'))
     render(App)
-    const toolbar = screen.getByRole('toolbar', { name: 'Formatting' })
+    const toolbar = screen.getByRole('toolbar', { name: 'Tools' })
     type('word')
     editorView()?.dispatch({ selection: { anchor: 0, head: 4 } })
 
@@ -333,24 +339,91 @@ describe('App', () => {
     await shows('**word**')
     await user.click(within(toolbar).getByRole('button', { name: 'Undo' }))
     await shows('word')
-    await user.click(within(toolbar).getByRole('button', { name: 'Heading 2' }))
+    await user.click(command('Heading 2'))
     await shows('## word')
 
     await user.click(command('Open'))
     await user.click(await screen.findByRole('button', { name: 'Discard' }))
     await screen.findByText('notes.txt')
     expect(within(toolbar).queryByRole('button', { name: 'Bold' })).not.toBeInTheDocument()
-    await user.click(within(toolbar).getByRole('button', { name: 'Find and replace' }))
-    expect(screen.getByRole('textbox', { name: 'Find' })).toBeInTheDocument()
+    expect(within(toolbar).queryByRole('button', { name: 'Style' })).not.toBeInTheDocument()
+    expect(within(toolbar).getByRole('button', { name: 'Undo' })).toBeInTheDocument()
   })
 
-  it('moves between the toolbar’s tools with the arrow keys', async () => {
+  it.each([
+    [800, ['Bold', 'Style', 'Bulleted list', 'Insert', 'Undo', 'Find and replace', 'More']],
+    [720, ['Bold', 'Style', 'Lists', 'Insert', 'Undo']],
+    [600, ['Text', 'Style', 'Lists', 'Insert', 'Undo']],
+    [500, ['Text', 'Style', 'Lists', 'Insert', 'Find and replace']],
+    [390, ['Format', 'Find and replace', 'More']],
+  ])('folds the tools into menus to fit %dpx', (width, shown) => {
+    layOut(width)
+    render(App)
+    const toolbar = screen.getByRole('toolbar', { name: 'Tools' })
+    const tools = within(toolbar)
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+
+    expect(tools).toEqual(expect.arrayContaining(shown))
+    // Undo moves into the More menu last, and the formatting tools share one menu at the narrowest.
+    if (!shown.includes('Undo')) expect(command('Undo')).toBeInTheDocument()
+    expect(tools.includes('Format')).toBe(width === 390)
+  })
+
+  it('shows and hides find and replace with the find tool', async () => {
     const user = userEvent.setup()
     render(App)
-    const toolbar = screen.getByRole('toolbar', { name: 'Formatting' })
+    const find = screen.getByRole('button', { name: 'Find and replace' })
+    expect(find).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(find)
+
+    expect(screen.getByRole('textbox', { name: 'Find' })).toBeInTheDocument()
+    expect(find).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(find)
+
+    expect(screen.queryByRole('textbox', { name: 'Find' })).not.toBeInTheDocument()
+    expect(find).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('textbox', { name: 'Document' })).toHaveFocus()
+  })
+
+  it('cuts, copies, pastes and selects all from the More menu', async () => {
+    const user = userEvent.setup()
+    render(App)
+    type('one two')
+    const select = (anchor: number, head: number): void => {
+      editorView()?.dispatch({ selection: { anchor, head } })
+    }
+
+    select(0, 4)
+    await user.click(command('Cut'))
+    await shows('two')
+    expect(await navigator.clipboard.readText()).toBe('one ')
+
+    // Nothing to cut, with nothing selected.
+    select(3, 3)
+    await user.click(command('Cut'))
+    expect(await navigator.clipboard.readText()).toBe('one ')
+    await user.click(command('Paste'))
+    await shows('twoone ')
+
+    select(0, 3)
+    await user.click(command('Copy'))
+    expect(await navigator.clipboard.readText()).toBe('two')
+
+    await user.click(command('Select all'))
+    expect(editorView()?.state.selection.main).toMatchObject({ from: 0, to: 7 })
+  })
+
+  it('moves between the toolbar’s controls with the arrow keys', async () => {
+    const user = userEvent.setup()
+    layOut(1280)
+    render(App)
+    const toolbar = screen.getByRole('toolbar', { name: 'Tools' })
     const tool = (name: string) => within(toolbar).getByRole('button', { name })
 
-    // Only the first tool is in the tab order, until another is focused.
+    // Only the first control is in the tab order, until another is focused.
     expect(tool('Bold')).toHaveAttribute('tabindex', '0')
     expect(tool('Italic')).toHaveAttribute('tabindex', '-1')
     tool('Bold').focus()
@@ -359,19 +432,23 @@ describe('App', () => {
     expect(tool('Italic')).toHaveAttribute('tabindex', '0')
     expect(tool('Bold')).toHaveAttribute('tabindex', '-1')
     await user.keyboard('{ArrowLeft}{ArrowLeft}')
-    expect(tool('Find and replace')).toHaveFocus()
+    expect(tool('More')).toHaveFocus()
     await user.keyboard('{Home}')
     expect(tool('Bold')).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(tool('More')).toHaveFocus()
   })
 
-  it('hides the toolbar when turned off', async () => {
+  it('leaves the formatting tools out when turned off', async () => {
     const user = userEvent.setup()
+    layOut(1280)
     render(App)
 
-    await user.click(screen.getByRole('button', { name: 'Settings' }))
-    await user.click(screen.getByRole('switch', { name: 'Formatting toolbar' }))
+    await user.click(command('Settings'))
+    await user.click(screen.getByRole('switch', { name: 'Formatting tools' }))
 
-    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Bold' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Find and replace' })).toBeInTheDocument()
   })
 
   it('starts a new file from the file menu', async () => {

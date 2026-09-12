@@ -40,7 +40,7 @@ src/
     files/          Opening and saving local files and folders, and the state of the open files
     ui/             Generic UI pieces, such as the icons
   App.svelte        Root component: the layout, the editor and the file tree
-  Header.svelte     The header: file name, word count, file actions and their shortcuts, preferences
+  Header.svelte     The header: file name and its menu (file actions and their shortcuts), toolbar
   main.ts           Entry point, which also registers the service worker
   serviceWorker.ts  The service worker, for working offline
 public/             Static files served as-is from the base path: icons and the app manifest
@@ -148,7 +148,7 @@ clicked cell.
 
 ## Preferences
 
-The button at the end of the header opens the preferences, a native popover
+Settings, in the toolbar's More menu (or ⌘/Ctrl+,), opens the preferences, a modal dialog
 ([`src/lib/preferences/`](src/lib/preferences)). They apply at once, and are kept in local storage:
 
 - **Theme:** system, light or dark. A picked theme sets `data-theme` on the root element, which

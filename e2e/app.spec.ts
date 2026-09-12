@@ -74,19 +74,53 @@ test.describe('editor', () => {
     await expect(editor).not.toContainText('draft')
   })
 
-  test('formats the selection from the toolbar, keeping the editor focused', async ({ page }) => {
+  test('formats the selection from the toolbar and its menus, keeping the editor focused', async ({
+    page,
+  }) => {
     const editor = page.getByRole('textbox', { name: 'Document' })
-    const toolbar = page.getByRole('toolbar', { name: 'Formatting' })
+    const toolbar = page.getByRole('toolbar', { name: 'Tools' })
     await page.keyboard.type('Plans')
     await page.keyboard.press('Shift+Home')
 
     await toolbar.getByRole('button', { name: 'Bold' }).click()
-    await toolbar.getByRole('button', { name: 'Heading 1' }).click()
+    await toolbar.getByRole('button', { name: 'Style' }).click()
+    await page.getByRole('button', { name: 'Heading 1' }).click()
 
+    await expect(page.getByRole('button', { name: 'Heading 1' })).toBeHidden()
     await expect(editor).toBeFocused()
     await page.keyboard.press('End')
     await expect(editor.locator('.cm-line')).toHaveText(['# **Plans**'])
     await toolbar.getByRole('button', { name: 'Undo' }).click()
     await expect(editor.locator('.cm-line')).toHaveText(['**Plans**'])
+  })
+
+  test('shows and hides find and replace with the find tool', async ({ page }) => {
+    const find = page.getByRole('button', { name: 'Find and replace' })
+    const field = page.getByRole('textbox', { name: 'Find' })
+
+    await find.click()
+    await expect(field).toBeFocused()
+    await expect(find).toHaveAttribute('aria-pressed', 'true')
+
+    await find.click()
+    await expect(field).toBeHidden()
+    await expect(page.getByRole('textbox', { name: 'Document' })).toBeFocused()
+  })
+
+  test('folds the tools into menus on narrow screens', async ({ page }) => {
+    const editor = page.getByRole('textbox', { name: 'Document' })
+    const toolbar = page.getByRole('toolbar', { name: 'Tools' })
+    await page.setViewportSize({ width: 390, height: 700 })
+    await page.keyboard.type('Plans')
+    await page.keyboard.press('Shift+Home')
+
+    await expect(toolbar.getByRole('button', { name: 'Bold' })).toBeHidden()
+    await toolbar.getByRole('button', { name: 'Format' }).click()
+    await page.getByRole('button', { name: 'Italic' }).click()
+    await expect(editor.locator('.cm-line')).toHaveText(['*Plans*'])
+
+    await toolbar.getByRole('button', { name: 'More' }).click()
+    await page.getByRole('button', { name: 'Undo' }).click()
+    await expect(editor.locator('.cm-line')).toHaveText(['Plans'])
   })
 })
