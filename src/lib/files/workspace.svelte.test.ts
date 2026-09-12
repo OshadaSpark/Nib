@@ -316,6 +316,27 @@ describe('Workspace', () => {
       expect(readFile).not.toHaveBeenCalled()
     })
 
+    it('doesn’t hold up saving, which it then leaves alone', async () => {
+      await openThenChangeOnDisk('changed')
+      let finishCheck: (modified: number) => void = () => undefined
+      vi.mocked(lastModified).mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishCheck = resolve
+        }),
+      )
+      vi.mocked(saveFile).mockResolvedValue({ name: 'notes.md', handle: notes, modified: 3 })
+      type(workspace, 'edited')
+
+      const checking = workspace.checkDisk()
+      await workspace.save()
+      finishCheck(2)
+      await checking
+
+      expect(saveFile).toHaveBeenCalledOnce()
+      expect(confirm).not.toHaveBeenCalled()
+      expect(workspace.file.content.toString()).toBe('edited')
+    })
+
     it('ignores files without a handle, and failures', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined)
       await workspace.checkDisk()
