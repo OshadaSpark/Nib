@@ -4,6 +4,7 @@ import { language } from '@codemirror/language'
 import { Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { render, screen } from '@testing-library/svelte'
+import { userEvent } from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 const getView = (): EditorView => {
@@ -45,6 +46,20 @@ describe('Editor', () => {
     await rerender({ language: languageFor('notes.md') })
 
     expect(getView().state.facet(language)?.name).toBe('markdown')
+  })
+
+  it('finds and replaces text from a panel opened with Ctrl+F', async () => {
+    const user = userEvent.setup()
+    render(Editor, { doc: Text.of(['one cat, two cats']) })
+
+    await user.keyboard('{Control>}f{/Control}')
+    await user.type(screen.getByRole('textbox', { name: 'Find' }), 'cat')
+    await user.type(screen.getByRole('textbox', { name: 'Replace' }), 'dog')
+    await user.click(screen.getByRole('button', { name: 'Replace all' }))
+    expect(getView().state.doc.toString()).toBe('one dog, two dogs')
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('textbox', { name: 'Find' })).not.toBeInTheDocument()
   })
 
   it('removes the editor when unmounted', () => {

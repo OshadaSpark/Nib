@@ -40,6 +40,28 @@ test.describe('editor', () => {
     await expect(editor).toBeFocused()
   })
 
+  test('finds and replaces text', async ({ page }) => {
+    const editor = page.getByRole('textbox', { name: 'Document' })
+    await page.keyboard.type('one cat, two cats')
+
+    await page.keyboard.press('ControlOrMeta+f')
+    await page.getByRole('textbox', { name: 'Find' }).pressSequentially('cat')
+    await page.keyboard.press('Enter')
+    await page.keyboard.press('Enter')
+    await page.getByRole('textbox', { name: 'Replace' }).pressSequentially('dog')
+    // Replaces the selected match, the second one, and selects the next.
+    await page.keyboard.press('Enter')
+
+    await expect(editor).toHaveText('one cat, two dogs')
+
+    await page.getByRole('button', { name: 'Replace all' }).click()
+    await expect(editor).toHaveText('one dog, two dogs')
+
+    await page.getByRole('textbox', { name: 'Find' }).press('Escape')
+    await expect(page.getByRole('textbox', { name: 'Find' })).toBeHidden()
+    await expect(editor).toBeFocused()
+  })
+
   test('undoes edits', async ({ page }) => {
     const editor = page.getByRole('textbox', { name: 'Document' })
 

@@ -16,6 +16,8 @@
   --color-syntax-function: var(--color-accent);
   --color-syntax-type: light-dark(#0b7a83, #6fc3c9);
   --color-danger: light-dark(#c42b1c, #ff8a7a);
+  --color-match: light-dark(rgb(242 177 0 / 0.3), rgb(242 177 0 / 0.22));
+  --color-match-current: light-dark(rgb(242 140 0 / 0.55), rgb(242 160 0 / 0.5));
 
   --font-sans: system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;

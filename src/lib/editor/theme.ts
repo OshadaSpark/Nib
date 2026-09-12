@@ -49,6 +49,87 @@ const editorTheme = EditorView.theme({
   '.cm-placeholder': {
     color: 'var(--color-muted)',
   },
+  // The find and replace panel, aligned with the text column. The panel keeps the editor's font
+  // size, so that `ch` in `lineInset` resolves the same as in lines, and sizes its controls instead.
+  '.cm-panels': {
+    color: 'var(--color-muted)',
+    backgroundColor: 'var(--color-bg)',
+  },
+  '.cm-panels-top': {
+    borderBlockEnd: '1px solid var(--color-border)',
+  },
+  '.cm-panel.cm-search': {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.375rem',
+    paddingBlock: '0.5rem',
+    paddingInline: lineInset,
+    '& input, & button, & label': {
+      margin: '0',
+      fontSize: '0.875rem',
+    },
+    // Line break before the replace controls, which wraps them instead. "All" selects every match,
+    // which needs multiple selections.
+    '& br, & [name=select]': {
+      display: 'none',
+    },
+    // Moves the replace controls to a second row: this full-width item comes between the rows.
+    '&::before': {
+      content: '""',
+      order: '1',
+      flexBasis: '100%',
+    },
+    '& [name=replace], & [name=replaceAll]': {
+      order: '2',
+    },
+    '& [name=close]': {
+      position: 'static',
+      marginInlineStart: 'auto',
+      paddingInline: '0.5rem',
+      fontSize: '1.125rem',
+      lineHeight: '1.25',
+    },
+    '& label': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.25rem',
+      paddingInline: '0.25rem',
+    },
+    '& input[type=checkbox]': {
+      margin: '0',
+      accentColor: 'var(--color-accent)',
+    },
+  },
+  '.cm-textfield': {
+    // Grows to fill the row on narrow screens.
+    flex: '1 1 10rem',
+    maxInlineSize: '16rem',
+    paddingBlock: '0.25rem',
+    paddingInline: '0.5rem',
+    border: '1px solid var(--color-border)',
+    borderRadius: radius,
+    color: 'var(--color-text)',
+    backgroundColor: 'transparent',
+    '&:focus-visible': {
+      outline: '2px solid var(--color-accent)',
+      outlineOffset: '-1px',
+    },
+  },
+  // Text buttons, as in the header (see `app.css`), in place of the base theme's gradients.
+  '.cm-button, .cm-button:active': {
+    paddingBlock: '0.25rem',
+    paddingInline: '0.625rem',
+    border: 'none',
+    borderRadius: radius,
+    backgroundImage: 'none',
+  },
+  '.cm-searchMatch': {
+    backgroundColor: 'var(--color-match)',
+  },
+  '.cm-searchMatch-selected': {
+    backgroundColor: 'var(--color-match-current)',
+  },
   // Rendered Markdown, from the live preview.
   '.cm-link': {
     textDecoration: 'underline',
