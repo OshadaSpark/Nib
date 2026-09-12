@@ -50,31 +50,13 @@
 <style>
   dialog {
     inline-size: min(24rem, 100% - 2rem);
-    padding: 1.5rem;
-    border: none;
-    border-radius: 1rem;
     font-size: 0.875rem;
-    color: var(--color-text);
-    background: var(--color-raised);
-    box-shadow: var(--shadow-raised);
-    transition:
-      opacity 0.15s,
-      scale 0.15s;
-
-    @starting-style {
-      opacity: 0;
-      scale: 0.97;
-    }
 
     &[open] {
       display: grid;
       /* The text spans all columns; the buttons sit at the end of the last row. */
       grid-template-columns: 1fr auto auto;
       gap: 0.5rem;
-    }
-
-    &::backdrop {
-      background: rgb(0 0 0 / 0.25);
     }
   }
 

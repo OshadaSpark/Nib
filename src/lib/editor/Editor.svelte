@@ -11,9 +11,9 @@
   import { untrack } from 'svelte'
   import type { Attachment } from 'svelte/attachments'
   import { difference } from './difference'
-  import { editorExtensions } from './extensions'
+  import { appearanceExtensions, editorExtensions } from './extensions'
   import type { EditorSnapshot } from './snapshot'
-  import { appearanceTheme, type Appearance } from './theme'
+  import type { Appearance } from './theme'
 
   interface Props {
     /**
@@ -26,12 +26,14 @@
     language?: Extension
     /** More extensions, fixed once the editor is created. */
     extensions?: Extension
-    /** The text's font family, size and column width, which can change while mounted. */
+    /** How the text shows, such as its font and line numbers, which can change while mounted. */
     appearance?: Appearance | null
     /** Called with the new document after every change. */
     onchange?: (doc: Text) => void
     /** Called with the selection when the editor is created and whenever the selection changes. */
     onselect?: (selection: EditorSelection) => void
+    /** Called with the view once it is created, and with `null` when it is destroyed. */
+    onview?: (view: EditorView | null) => void
     /** State to start from instead of `doc`, as the editor last had it before `onleave`. */
     snapshot?: EditorSnapshot | null
     /** Called with the editor's state as it is unmounted, to restore it through `snapshot`. */
@@ -45,6 +47,7 @@
     appearance = null,
     onchange,
     onselect,
+    onview,
     snapshot = null,
     onleave,
   }: Props = $props()
@@ -56,7 +59,7 @@
   const appearanceCompartment = new Compartment()
 
   const appearanceExtension = (value: Appearance | null): Extension =>
-    value ? appearanceTheme(value) : []
+    value ? appearanceExtensions(value) : []
 
   const mountEditor: Attachment<HTMLElement> = (parent) => {
     const extensions = [
@@ -81,7 +84,10 @@
       : EditorState.create({ doc: initial, extensions })
     const view = new EditorView({ state, parent })
     if (restored) view.dispatch({ effects: restored.scroll })
-    untrack(() => onselect?.(state.selection))
+    untrack(() => {
+      onselect?.(state.selection)
+      onview?.(view)
+    })
     view.focus()
 
     // A new `doc`, as when the file is reloaded from disk, rather than the one the editor started
@@ -109,6 +115,7 @@
 
     return () => {
       leave?.({ state: view.state.toJSON(fields), scroll: view.scrollSnapshot() })
+      untrack(() => onview?.(null))
       view.destroy()
     }
   }

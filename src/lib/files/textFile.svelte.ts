@@ -37,9 +37,9 @@ export class TextFile {
   snapshot: EditorSnapshot | null = null
 
   /** The editor normalises line breaks to `\n`, so the file's own is restored on save. */
-  #lineBreak = '\n'
+  #lineBreak: '\n' | '\r\n' = $state('\n')
   /** Kept out of the editor, where it would be invisible, and restored on save. */
-  #byteOrderMark = ''
+  #byteOrderMark = $state('')
 
   constructor(
     name: string,
@@ -51,6 +51,16 @@ export class TextFile {
     this.handle = handle
     this.modified = modified
     this.#load(text)
+  }
+
+  /** Whether the file's lines end in `\r\n` (Windows) rather than `\n`. */
+  get crlf(): boolean {
+    return this.#lineBreak === '\r\n'
+  }
+
+  /** Whether the file starts with a UTF-8 byte-order mark. */
+  get byteOrderMark(): boolean {
+    return this.#byteOrderMark !== ''
   }
 
   /** Replaces the content with `text`, read from disk again as it was modified at `modified`. */

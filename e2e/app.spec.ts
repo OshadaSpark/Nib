@@ -73,4 +73,20 @@ test.describe('editor', () => {
 
     await expect(editor).not.toContainText('draft')
   })
+
+  test('formats the selection from the toolbar, keeping the editor focused', async ({ page }) => {
+    const editor = page.getByRole('textbox', { name: 'Document' })
+    const toolbar = page.getByRole('toolbar', { name: 'Formatting' })
+    await page.keyboard.type('Plans')
+    await page.keyboard.press('Shift+Home')
+
+    await toolbar.getByRole('button', { name: 'Bold' }).click()
+    await toolbar.getByRole('button', { name: 'Heading 1' }).click()
+
+    await expect(editor).toBeFocused()
+    await page.keyboard.press('End')
+    await expect(editor.locator('.cm-line')).toHaveText(['# **Plans**'])
+    await toolbar.getByRole('button', { name: 'Undo' }).click()
+    await expect(editor.locator('.cm-line')).toHaveText(['**Plans**'])
+  })
 })

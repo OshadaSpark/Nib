@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { EditorSelection, Text } from '@codemirror/state'
+  import type { EditorView } from '@codemirror/view'
   import { onMount } from 'svelte'
   import { MediaQuery } from 'svelte/reactivity'
   import ConfirmDialog from '$lib/dialog/ConfirmDialog.svelte'
@@ -8,15 +9,17 @@
   import { languageFor } from '$lib/editor/extensions'
   import { localFiles } from '$lib/editor/markdown/links'
   import type { EditorSnapshot } from '$lib/editor/snapshot'
-  import WordCount from '$lib/editor/WordCount.svelte'
+  import Toolbar from '$lib/editor/Toolbar.svelte'
   import DropOverlay from '$lib/files/DropOverlay.svelte'
   import { readFile, type OpenedFile } from '$lib/files/fileAccess'
   import FileTree from '$lib/files/FileTree.svelte'
+  import { isMarkdownName } from '$lib/files/fileTypes'
   import type { TextFile } from '$lib/files/textFile.svelte'
   import { Workspace } from '$lib/files/workspace.svelte'
   import { Preferences } from '$lib/preferences/preferences.svelte'
   import Icon from '$lib/ui/Icon.svelte'
   import Header from './Header.svelte'
+  import StatusBar from './StatusBar.svelte'
 
   const confirmation = new Confirmation()
   const workspace = new Workspace(confirmation.ask)
@@ -49,12 +52,14 @@
 
   const title = $derived(`${workspace.file.dirty ? '• ' : ''}${workspace.file.name} — typer`)
 
-  /** The editor's selection, for the word count. */
+  /** The editor's selection, for the status bar. */
   let selection = $state.raw<EditorSelection | null>(null)
+  /** The editor, for the toolbar. */
+  let view = $state.raw<EditorView | null>(null)
 
   /**
-   * Whether the user is writing, which fades the header and footer until the pointer moves or
-   * touches the page.
+   * Whether the user is writing, which fades the controls around the editor (if the preferences
+   * say so) until the pointer moves or touches the page.
    */
   let writing = $state(false)
 
@@ -67,6 +72,9 @@
   }
   const onselect = (value: EditorSelection): void => {
     selection = value
+  }
+  const onview = (value: EditorView | null): void => {
+    view = value
   }
 
   /** Relative links and images lead to the open folder's files. */
@@ -133,8 +141,11 @@
 
 <svelte:window {onbeforeunload} {onfocus} onpointermove={stopWriting} onpointerdown={stopWriting} />
 
-<div class="app" class:writing>
+<div class="app" class:writing={writing && preferences.fadeWhileWriting}>
   <Header {workspace} {preferences} {filesId} bind:filesShown />
+  {#if preferences.toolbar}
+    <Toolbar {view} markdown={isMarkdownName(workspace.file.name)} />
+  {/if}
 
   {#if workspace.folder && filesShown}
     <!-- On narrow screens, where the files cover the editor, a click beside them closes them. -->
@@ -167,6 +178,7 @@
         appearance={preferences.appearance}
         {onchange}
         {onselect}
+        {onview}
       />
     {/key}
     {#if workspace.error}
@@ -179,32 +191,39 @@
     {/if}
   </main>
 
-  <footer>
-    <WordCount doc={workspace.file.content} {selection} />
-  </footer>
+  {#if Object.values(preferences.status).some(Boolean)}
+    <footer>
+      <StatusBar file={workspace.file} {selection} items={preferences.status} />
+    </footer>
+  {/if}
 </div>
 
 <DropOverlay ondropfile={openWith} />
 <ConfirmDialog {confirmation} />
 
 <style>
-  /* The file tree beside the header, editor and footer, when a folder is open. */
+  /* The file tree beside the header, toolbar, editor and footer, when a folder is open. */
   .app {
     display: grid;
     grid-template:
       'sidebar header' auto
+      'sidebar toolbar' auto
       'sidebar main' minmax(0, 1fr)
       'sidebar footer' auto
       / auto minmax(0, 1fr);
     block-size: 100dvh;
 
+    & > :global([role='toolbar']) {
+      grid-area: toolbar;
+    }
+
     /* Out of the way while writing, back when the pointer moves or the keyboard reaches them. */
-    & > :global(header),
+    & > :global(:is(header, [role='toolbar'])),
     & > footer {
       transition: opacity 0.4s;
     }
 
-    &.writing > :global(header:not(:focus-within)),
+    &.writing > :global(:is(header, [role='toolbar']):not(:focus-within)),
     &.writing > footer {
       opacity: 0;
     }
@@ -242,8 +261,6 @@
 
   footer {
     grid-area: footer;
-    display: flex;
-    justify-content: end;
     padding-block: 0.25rem 0.5rem;
     padding-inline: 1rem;
     font-size: 0.8125rem;

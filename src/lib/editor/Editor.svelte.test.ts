@@ -94,6 +94,32 @@ describe('Editor', () => {
     expect(screen.queryByRole('textbox', { name: 'Find' })).not.toBeInTheDocument()
   })
 
+  it('shows line numbers and checks spelling as the appearance says', async () => {
+    const appearance = { font: 'serif', size: '1rem', width: '60ch' }
+    const { container, rerender } = render(Editor, {
+      doc: Text.of(['a', 'b']),
+      appearance: { ...appearance, lineNumbers: false, spellcheck: true },
+    })
+    const textbox = screen.getByRole('textbox', { name: 'Document' })
+    expect(container.querySelector('.cm-lineNumbers')).toBeNull()
+    expect(textbox).toHaveAttribute('spellcheck', 'true')
+
+    await rerender({ appearance: { ...appearance, lineNumbers: true, spellcheck: false } })
+
+    expect(container.querySelector('.cm-lineNumbers')).toHaveTextContent('12')
+    expect(textbox).toHaveAttribute('spellcheck', 'false')
+  })
+
+  it('hands over its view when created, and null when destroyed', () => {
+    const onview = vi.fn()
+    const { unmount } = render(Editor, { onview })
+    expect(onview).toHaveBeenLastCalledWith(getView())
+
+    unmount()
+
+    expect(onview).toHaveBeenLastCalledWith(null)
+  })
+
   it('removes the editor when unmounted', () => {
     const { container, unmount } = render(Editor)
 

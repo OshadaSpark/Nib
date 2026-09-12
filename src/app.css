@@ -147,6 +147,30 @@ button {
   }
 }
 
+/* Modal dialogs, raised above the dimmed page. */
+dialog {
+  padding: 1.5rem;
+  border: none;
+  border-radius: 1rem;
+  color: var(--color-text);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-raised);
+  transition:
+    opacity 0.15s,
+    scale 0.15s;
+
+  &[open] {
+    @starting-style {
+      opacity: 0;
+      scale: 0.97;
+    }
+  }
+
+  &::backdrop {
+    background: rgb(0 0 0 / 0.25);
+  }
+}
+
 /* Cut short with an ellipsis where the text doesn't fit on one line. */
 .truncate {
   overflow: hidden;
