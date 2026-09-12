@@ -1,8 +1,8 @@
 import { Text } from '@codemirror/state'
 import type { Confirm } from '$lib/dialog/confirmation.svelte'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-import { lastModified, openFile, readFile, saveFile } from './fileAccess'
-import { handle, opened } from './testFiles'
+import { lastModified, openFile, openFolder, readFile, saveFile } from './fileAccess'
+import { fakeFolder, handle, opened } from './testFiles'
 import { Workspace } from './workspace.svelte'
 
 vi.mock('./fileAccess')
@@ -142,7 +142,7 @@ describe('Workspace', () => {
 
       await workspace.save()
 
-      expect(saveFile).toHaveBeenCalledWith('a\r\nb\r\nc', 'notes.md', notes)
+      expect(saveFile).toHaveBeenCalledWith('a\r\nb\r\nc', 'notes.md', notes, null)
       expect(workspace.file.dirty).toBe(false)
     })
 
@@ -153,7 +153,7 @@ describe('Workspace', () => {
 
       await workspace.save()
 
-      expect(saveFile).toHaveBeenCalledWith('text', 'Untitled.md', null)
+      expect(saveFile).toHaveBeenCalledWith('text', 'Untitled.md', null, null)
       expect(workspace.file.name).toBe('chosen.md')
       expect(workspace.file.handle).toBe(chosen)
     })
@@ -210,7 +210,7 @@ describe('Workspace', () => {
 
       await workspace.saveAs()
 
-      expect(saveFile).toHaveBeenCalledWith('', 'notes.md', null)
+      expect(saveFile).toHaveBeenCalledWith('', 'notes.md', null, null)
       expect(workspace.file.name).toBe('copy.md')
     })
   })
@@ -348,6 +348,147 @@ describe('Workspace', () => {
 
       expect(workspace.error).toBeNull()
       expect(workspace.file.content.toString()).toBe('saved')
+    })
+  })
+
+  describe('folders', () => {
+    /** Reads fake files as the real `readFile` would. */
+    const readFakes = (): void => {
+      vi.mocked(readFile).mockImplementation(async (file) => {
+        const read = await file.getFile()
+        return opened(read.name, await read.text(), file, read.lastModified)
+      })
+      vi.mocked(lastModified).mockImplementation(
+        async (file) => (await file.getFile()).lastModified,
+      )
+    }
+
+    const openNotes = async (): Promise<FileSystemDirectoryHandle> => {
+      const notes = fakeFolder('Notes', {
+        'ideas.md': '# Ideas',
+        journal: { 'today.md': '# Today' },
+      })
+      vi.mocked(openFolder).mockResolvedValue(notes)
+      readFakes()
+      await workspace.openFolder()
+      return notes
+    }
+
+    it('opens a folder, listing its files', async () => {
+      await openNotes()
+
+      expect(workspace.folder?.name).toBe('Notes')
+      expect(workspace.folder?.root.children?.map((node) => node.name)).toEqual([
+        'journal',
+        'ideas.md',
+      ])
+      expect(workspace.file.name).toBe('Untitled.md')
+    })
+
+    it('opens files by path, and reveals them in the tree', async () => {
+      await openNotes()
+
+      await workspace.openPath('journal/today.md')
+
+      expect(workspace.file.name).toBe('today.md')
+      expect(workspace.file.path).toBe('journal/today.md')
+      expect(workspace.file.content.toString()).toBe('# Today')
+      const journal = workspace.folder?.root.children?.[0]
+      expect(journal?.kind === 'directory' && journal.expanded).toBe(true)
+    })
+
+    it('keeps each file’s unsaved changes while switching, without asking', async () => {
+      await openNotes()
+      await workspace.openPath('ideas.md')
+      const ideas = workspace.file
+      type(workspace, 'edited ideas')
+
+      await workspace.openPath('journal/today.md')
+      expect(workspace.dirty).toBe(true)
+      await workspace.openPath('ideas.md')
+
+      expect(confirm).not.toHaveBeenCalled()
+      expect(workspace.file).toBe(ideas)
+      expect(workspace.file.content.toString()).toBe('edited ideas')
+    })
+
+    it('asks before leaving an unsaved file that isn’t in the folder', async () => {
+      await openNotes()
+      type(workspace, 'scratch')
+      confirm.mockResolvedValue(false)
+
+      await workspace.openPath('ideas.md')
+
+      expect(confirm).toHaveBeenCalledOnce()
+      expect(workspace.file.content.toString()).toBe('scratch')
+    })
+
+    it('asks before opening another folder over unsaved changes', async () => {
+      await openNotes()
+      await workspace.openPath('ideas.md')
+      type(workspace, 'edited')
+      await workspace.openPath('journal/today.md')
+      type(workspace, 'edited too')
+      confirm.mockResolvedValue(false)
+
+      await workspace.openFolder()
+
+      expect(confirm).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Your changes to 2 files will be lost.' }),
+      )
+      expect(workspace.opened.size).toBe(2)
+    })
+
+    it('reports paths without a file, and files that aren’t text', async () => {
+      const notes = await openNotes()
+      await workspace.openPath('gone.md')
+      expect(workspace.error).toBe('There’s no gone.md in the folder.')
+
+      const binary = await notes.getFileHandle('binary.md', { create: true })
+      const writable = await binary.createWritable()
+      await writable.write('\0')
+      await writable.close()
+      await workspace.openPath('binary.md')
+      expect(workspace.error).toBe('binary.md isn’t a UTF-8 text file.')
+    })
+
+    it('saves new files into the folder, and tracks them there', async () => {
+      const notes = await openNotes()
+      const created = await notes.getFileHandle('new.md', { create: true })
+      vi.mocked(saveFile).mockResolvedValue({ name: 'new.md', handle: created, modified: 2 })
+      type(workspace, 'new')
+
+      await workspace.save()
+
+      expect(saveFile).toHaveBeenCalledWith('new', 'Untitled.md', null, notes)
+      expect(workspace.file.path).toBe('new.md')
+      expect(workspace.opened.get('new.md')).toBe(workspace.file)
+      expect(workspace.folder?.root.children?.map((node) => node.name)).toContain('new.md')
+    })
+
+    it('switches to a folder’s file that is opened again from the picker', async () => {
+      const notes = await openNotes()
+      await workspace.openPath('ideas.md')
+      const ideas = workspace.file
+      type(workspace, 'edited')
+      await workspace.openPath('journal/today.md')
+      vi.mocked(openFile).mockResolvedValue(
+        opened('ideas.md', '# Ideas', await notes.getFileHandle('ideas.md')),
+      )
+
+      await workspace.open()
+
+      expect(workspace.file).toBe(ideas)
+      expect(workspace.file.content.toString()).toBe('edited')
+    })
+
+    it('lists the folder again when checking for changes on disk', async () => {
+      const notes = await openNotes()
+      await notes.getFileHandle('added.md', { create: true })
+
+      await workspace.checkDisk()
+
+      expect(workspace.folder?.root.children?.map((node) => node.name)).toContain('added.md')
     })
   })
 })

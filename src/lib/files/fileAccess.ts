@@ -3,6 +3,8 @@
  * back to the opened file. Elsewhere, files are opened with a file input and saved as downloads.
  */
 
+import { writeFile } from './writeFile'
+
 /** A file read from disk. */
 export interface OpenedFile {
   name: string
@@ -113,14 +115,25 @@ export const droppedFile = (data: DataTransfer): (() => Promise<OpenedFile>) | n
   }
 }
 
+/** Whether folders can be opened, which needs the File System Access API. */
+export const canOpenFolders = (): boolean => 'showDirectoryPicker' in window
+
+/** Asks the user for a folder to open, with permission to edit it. `null` if they cancel. */
+export const openFolder = async (): Promise<FileSystemDirectoryHandle | null> => {
+  const showDirectoryPicker = window.showDirectoryPicker?.bind(window)
+  return showDirectoryPicker ? pick(() => showDirectoryPicker({ mode: 'readwrite' })) : null
+}
+
 /**
- * Saves `text` to `handle`, or asks the user where to save it when there is no handle. Resolves to
- * `null` if they cancel. Without the File System Access API, the file is downloaded instead.
+ * Saves `text` to `handle`, or asks the user where to save it when there is no handle, starting in
+ * `folder` if given. Resolves to `null` if they cancel. Without the File System Access API, the file
+ * is downloaded instead.
  */
 export const saveFile = async (
   text: string,
   name: string,
   handle: FileSystemFileHandle | null,
+  folder: FileSystemDirectoryHandle | null = null,
 ): Promise<SavedFile | null> => {
   const showSaveFilePicker = window.showSaveFilePicker?.bind(window)
 
@@ -130,18 +143,16 @@ export const saveFile = async (
   }
 
   const target =
-    handle ?? (await pick(() => showSaveFilePicker({ suggestedName: name, types: pickerTypes })))
+    handle ??
+    (await pick(() =>
+      showSaveFilePicker({
+        suggestedName: name,
+        types: pickerTypes,
+        ...(folder && { startIn: folder }),
+      }),
+    ))
   if (!target) return null
 
-  // Writes go to a temporary file that replaces the original on `close()`, or is discarded on
-  // `abort()`, so a failed save leaves the file untouched.
-  const writable = await target.createWritable()
-  try {
-    await writable.write(text)
-    await writable.close()
-  } catch (error) {
-    await writable.abort()
-    throw error
-  }
+  await writeFile(target, text)
   return { name: target.name, handle: target, modified: await lastModified(target) }
 }

@@ -1,5 +1,6 @@
 import { languageFor } from '$lib/editor/extensions'
 import Editor from '$lib/editor/Editor.svelte'
+import type { EditorSnapshot } from '$lib/editor/snapshot'
 import { undo } from '@codemirror/commands'
 import { language } from '@codemirror/language'
 import { Text } from '@codemirror/state'
@@ -51,6 +52,23 @@ describe('Editor', () => {
     expect(view.state.selection.main.head).toBe(11)
     expect(undo(view)).toBe(true)
     expect(view.state.doc.toString()).toBe('one two three')
+  })
+
+  it('hands over its state when unmounted, and restores it from that snapshot', () => {
+    const onleave = vi.fn<(snapshot: EditorSnapshot) => void>()
+    const { unmount } = render(Editor, { doc: Text.of(['one']), onleave })
+    getView().dispatch({ changes: { from: 3, insert: ' two' }, selection: { anchor: 1 } })
+
+    unmount()
+    const [snapshot = null] = onleave.mock.lastCall ?? []
+    expect(snapshot).not.toBeNull()
+    render(Editor, { doc: Text.of(['one']), snapshot })
+
+    const view = getView()
+    expect(view.state.doc.toString()).toBe('one two')
+    expect(view.state.selection.main.head).toBe(1)
+    expect(undo(view)).toBe(true)
+    expect(view.state.doc.toString()).toBe('one')
   })
 
   it('switches language when the prop changes', async () => {

@@ -14,11 +14,24 @@ interface FilePickerOptions {
 
 interface SaveFilePickerOptions extends FilePickerOptions {
   suggestedName?: string
+  /** Where the picker starts. */
+  startIn?: FileSystemHandle
+}
+
+interface DirectoryPickerOptions {
+  mode?: 'read' | 'readwrite'
 }
 
 interface Window {
   showOpenFilePicker?: (options?: FilePickerOptions) => Promise<FileSystemFileHandle[]>
   showSaveFilePicker?: (options?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>
+  showDirectoryPicker?: (options?: DirectoryPickerOptions) => Promise<FileSystemDirectoryHandle>
+}
+
+// Renames the file in place. Chromium implements it, though only behind a flag for files outside the
+// origin private file system: elsewhere it rejects.
+interface FileSystemFileHandle {
+  move?: (name: string) => Promise<void>
 }
 
 interface DataTransferItem {

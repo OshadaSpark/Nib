@@ -1,18 +1,34 @@
-import { openFile, saveFile } from '$lib/files/fileAccess'
-import { handle, opened } from '$lib/files/testFiles'
+import {
+  canOpenFolders,
+  lastModified,
+  openFile,
+  openFolder,
+  readFile,
+  saveFile,
+} from '$lib/files/fileAccess'
+import { fakeFolder, handle, opened } from '$lib/files/testFiles'
 import { EditorView } from '@codemirror/view'
-import { render, screen } from '@testing-library/svelte'
+import { render, screen, within } from '@testing-library/svelte'
 import { userEvent, type UserEvent } from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App.svelte'
 
 vi.mock('$lib/files/fileAccess')
 
+const editorView = (): EditorView | null =>
+  EditorView.findFromDOM(screen.getByRole('textbox', { name: 'Document' }))
+
 /** Types into the editor through its view, as jsdom does not support contenteditable input. */
 const type = (text: string): void => {
-  const view = EditorView.findFromDOM(screen.getByRole('textbox', { name: 'Document' }))
+  const view = editorView()
   view?.dispatch({ changes: { from: view.state.doc.length, insert: text } })
 }
+
+/** Waits for the editor to show `text`. */
+const shows = (text: string): Promise<void> =>
+  vi.waitFor(() => {
+    expect(editorView()?.state.doc.toString()).toBe(text)
+  })
 
 describe('App', () => {
   afterEach(() => {
@@ -54,8 +70,7 @@ describe('App', () => {
     })
     expect(count).toHaveAttribute('title', '14 characters')
 
-    const view = EditorView.findFromDOM(screen.getByRole('textbox', { name: 'Document' }))
-    view?.dispatch({ selection: { anchor: 2, head: 5 } })
+    editorView()?.dispatch({ selection: { anchor: 2, head: 5 } })
     await vi.waitFor(() => {
       expect(count).toHaveTextContent('1 of 3 words')
     })
@@ -72,7 +87,7 @@ describe('App', () => {
 
     await user.keyboard(keys)
 
-    expect(saveFile).toHaveBeenCalledWith('text', 'Untitled.md', null)
+    expect(saveFile).toHaveBeenCalledWith('text', 'Untitled.md', null, null)
   })
 
   it('saves from the Save button', async () => {
@@ -111,7 +126,48 @@ describe('App', () => {
 
     await saveAs(user)
 
-    expect(saveFile).toHaveBeenCalledWith('', 'notes.md', null)
+    expect(saveFile).toHaveBeenCalledWith('', 'notes.md', null, null)
+  })
+
+  it('offers to open folders only where the browser can', () => {
+    render(App)
+
+    expect(screen.queryByRole('button', { name: 'Open folder' })).not.toBeInTheDocument()
+  })
+
+  it('opens a folder, and switches between its files, keeping their edits', async () => {
+    const user = userEvent.setup()
+    vi.mocked(canOpenFolders).mockReturnValue(true)
+    vi.mocked(openFolder).mockResolvedValue(
+      fakeFolder('Notes', { 'ideas.md': '# Ideas', journal: { 'today.md': '# Today' } }),
+    )
+    vi.mocked(readFile).mockImplementation(async (file) => {
+      const read = await file.getFile()
+      return opened(read.name, await read.text(), file, read.lastModified)
+    })
+    vi.mocked(lastModified).mockImplementation(async (file) => (await file.getFile()).lastModified)
+    render(App)
+
+    await user.click(screen.getByRole('button', { name: 'Open folder' }))
+    const files = await screen.findByRole('navigation', { name: 'Files' })
+    await user.click(within(files).getByRole('button', { name: 'journal' }))
+    await user.click(await within(files).findByRole('button', { name: 'today.md' }))
+    await shows('# Today')
+    type(' edited')
+
+    await user.click(within(files).getByRole('button', { name: 'ideas.md' }))
+    await shows('# Ideas')
+    expect(within(files).getByRole('button', { name: 'today.md (edited)' })).toBeInTheDocument()
+
+    await user.click(within(files).getByRole('button', { name: 'today.md (edited)' }))
+    await shows('# Today edited')
+    expect(within(files).getByRole('button', { name: 'today.md (edited)' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Files' }))
+    expect(screen.queryByRole('navigation', { name: 'Files' })).not.toBeInTheDocument()
   })
 
   it('starts a new file from the New button', async () => {

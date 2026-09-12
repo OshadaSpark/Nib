@@ -104,8 +104,13 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
 - `workspace.svelte.ts` implements New, Open, Save and Save as. It reports failures in the header, and
   asks before discarding unsaved changes, in the dialog from
   [`src/lib/dialog/`](src/lib/dialog).
-- When the window regains focus, the workspace checks whether the open file changed on disk (with
-  the File System Access API). It reloads a file without unsaved changes, and asks first otherwise.
+- `folder.svelte.ts` models a folder opened with Open folder (Chromium only, as other browsers can't
+  write to one): a tree of its Markdown and text files, leaving out dot files and `node_modules`,
+  listed lazily as directories expand. `FileTree.svelte` shows it beside the editor, or over it on
+  narrow screens. Switching files keeps each file's unsaved changes, undo history, cursor and scroll
+  position; a dot in the tree marks the files with unsaved changes.
+- When the window regains focus, the workspace lists the folder again and checks whether the open
+  file changed on disk (with the File System Access API). It reloads a file without unsaved changes, and asks first otherwise.
   The editor takes over the new content without remounting (`difference.ts`), so the cursor and
   undo history stay.
 

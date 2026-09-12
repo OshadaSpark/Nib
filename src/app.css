@@ -63,9 +63,25 @@ button {
   }
 }
 
-/* Header above an editor that fills the remaining height and scrolls on its own. */
+/* Hidden visually, but read by screen readers. */
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * Header above the editor, which fills the remaining height and scrolls on its own, with the file
+ * tree beside it when a folder is open.
+ */
 #app {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template:
+    'header header' auto
+    'sidebar main' minmax(0, 1fr)
+    / auto minmax(0, 1fr);
   height: 100dvh;
 }

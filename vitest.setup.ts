@@ -13,3 +13,20 @@ HTMLDialogElement.prototype.close = function (this: HTMLDialogElement, returnVal
   this.open = false
   this.dispatchEvent(new Event('close'))
 }
+
+// jsdom has no media queries: report a wide screen, where none of the app's queries match, and
+// never a change (CodeMirror listens for print).
+window.matchMedia = (query: string): MediaQueryList =>
+  ({
+    matches: false,
+    media: query,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }) as unknown as MediaQueryList
+
+// jsdom has no layout, nor these for ranges, which CodeMirror measures text with (as when scrolling
+// the selection into view).
+Range.prototype.getClientRects = () => [] as unknown as DOMRectList
+Range.prototype.getBoundingClientRect = () => new DOMRect()

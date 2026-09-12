@@ -5,8 +5,11 @@
   import { countString, countText, type Counts } from '$lib/editor/count'
   import { languageFor } from '$lib/editor/extensions'
   import Editor from '$lib/editor/Editor.svelte'
+  import type { EditorSnapshot } from '$lib/editor/snapshot'
   import DropOverlay from '$lib/files/DropOverlay.svelte'
-  import type { OpenedFile } from '$lib/files/fileAccess'
+  import { canOpenFolders, type OpenedFile } from '$lib/files/fileAccess'
+  import FileTree from '$lib/files/FileTree.svelte'
+  import type { TextFile } from '$lib/files/textFile.svelte'
   import { Workspace } from '$lib/files/workspace.svelte'
 
   const confirmation = new Confirmation()
@@ -17,6 +20,18 @@
   const onchange = (doc: Text): void => {
     workspace.file.content = doc
   }
+
+  /** Keeps the editor's state for `file` while another file is shown. */
+  const keepSnapshot =
+    (file: TextFile) =>
+    (snapshot: EditorSnapshot): void => {
+      file.snapshot = snapshot
+    }
+
+  /** Whether the file tree shows, once a folder is open. */
+  let filesShown = $state(true)
+  /** Below this width, the file tree covers the editor rather than sitting beside it. */
+  const narrow = '(width < 48rem)'
 
   /** Counts for the selected text, if any. */
   let selected = $state.raw<Counts | null>(null)
@@ -45,6 +60,18 @@
   }
   const open = (): void => {
     void workspace.open()
+  }
+  const openFolder = (): void => {
+    filesShown = true
+    void workspace.openFolder()
+  }
+  const openPath = (path: string): void => {
+    if (window.matchMedia(narrow).matches) filesShown = false
+    void workspace.openPath(path)
+  }
+  const isDirty = (path: string): boolean => workspace.opened.get(path)?.dirty ?? false
+  const toggleFiles = (): void => {
+    filesShown = !filesShown
   }
   /** Coming back to the page, for example from another app, is when the file may have changed. */
   const onfocus = (): void => {
@@ -79,7 +106,7 @@
 
   /** Asks the browser to confirm leaving the page while there are unsaved changes. */
   const onbeforeunload = (event: BeforeUnloadEvent): void => {
-    if (workspace.file.dirty) event.preventDefault()
+    if (workspace.dirty) event.preventDefault()
   }
 </script>
 
@@ -90,6 +117,21 @@
 <svelte:window {onkeydown} {onbeforeunload} {onfocus} />
 
 <header>
+  {#if workspace.folder}
+    <button
+      type="button"
+      class="toggle"
+      aria-label="Files"
+      aria-expanded={filesShown}
+      aria-controls="files"
+      onclick={toggleFiles}
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" />
+        <path d="M6.25 2.75v10.5" />
+      </svg>
+    </button>
+  {/if}
   <p class="file">
     <span class="name">{workspace.file.name}</span>
     {#if workspace.file.dirty}
@@ -103,6 +145,9 @@
   <div class="actions">
     <button type="button" onclick={newFile}>New</button>
     <button type="button" onclick={open} aria-keyshortcuts="Control+O Meta+O">Open</button>
+    {#if canOpenFolders()}
+      <button type="button" onclick={openFolder}>Open folder</button>
+    {/if}
     <button type="button" onclick={save} aria-keyshortcuts="Control+S Meta+S">Save</button>
     <button type="button" onclick={saveAs} aria-keyshortcuts="Control+Shift+S Meta+Shift+S">
       Save as
@@ -110,12 +155,24 @@
   </div>
 </header>
 
+{#if workspace.folder && filesShown}
+  <!-- On narrow screens, where the files cover the editor, a click beside them closes them. -->
+  <button type="button" class="scrim" tabindex="-1" aria-label="Close files" onclick={toggleFiles}
+  ></button>
+  <aside id="files">
+    <FileTree folder={workspace.folder} current={workspace.file.path} {isDirty} onopen={openPath} />
+  </aside>
+{/if}
+
 <main>
-  <!-- A new file gets a new editor, so it starts with fresh state such as undo history. A file
-       reloaded from disk keeps its editor, which takes over the new content. -->
+  <!-- Another file gets another editor, with its own state such as undo history, restored from
+       its snapshot if it was shown before. A file reloaded from disk keeps its editor, which takes
+       over the new content. -->
   {#key workspace.file}
     <Editor
       doc={workspace.file.loaded}
+      snapshot={workspace.file.snapshot}
+      onleave={keepSnapshot(workspace.file)}
       language={languageFor(workspace.file.name)}
       {onchange}
       {onselect}
@@ -128,6 +185,7 @@
 
 <style>
   header {
+    grid-area: header;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -162,6 +220,58 @@
 
   .actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem;
+  }
+
+  .toggle {
+    display: grid;
+    margin-inline: -0.75rem -0.5rem;
+    padding: 0.25rem 0.5rem;
+
+    & svg {
+      inline-size: 1rem;
+      block-size: 1rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.25;
+    }
+  }
+
+  aside {
+    grid-area: sidebar;
+    inline-size: 16rem;
+    overflow-y: auto;
+    border-inline-end: 1px solid var(--color-border);
+    background-color: var(--color-bg);
+
+    /* Over the editor on narrow screens, with room to see there's more beyond. */
+    @media (width < 48rem) {
+      grid-area: main;
+      z-index: 5;
+      inline-size: min(18rem, 85%);
+      box-shadow: 0 0 2rem rgb(0 0 0 / 0.2);
+    }
+  }
+
+  main {
+    grid-area: main;
+    min-inline-size: 0;
+  }
+
+  .scrim {
+    display: none;
+
+    @media (width < 48rem) {
+      display: block;
+      grid-area: main;
+      z-index: 4;
+      border-radius: 0;
+      background-color: rgb(0 0 0 / 0.15);
+
+      &:hover {
+        background-color: rgb(0 0 0 / 0.15);
+      }
+    }
   }
 </style>
