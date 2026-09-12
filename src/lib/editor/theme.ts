@@ -31,6 +31,20 @@ const lineInset = `max(1.5rem, (100% - ${contentWidth}) / 2)`
 /** Radius of the corners of blocks, such as code blocks, images and tables. */
 const radius = '0.375rem'
 
+/** Code in the text: in its own font, a little smaller, as monospace fonts look larger. */
+const codeFont = { fontFamily: 'var(--font-mono)', fontSize: '0.9em' }
+
+/** Inline code, in the text and in tables. */
+const codeSpan = {
+  ...codeFont,
+  paddingInline: '0.2em',
+  borderRadius: '0.25em',
+  backgroundColor: 'var(--color-code-bg)',
+}
+
+/** Block widgets, which span the line and align their content with the text column. */
+const blockWidget = { paddingInline: lineInset, paddingBlock: '0.5rem' }
+
 // Colours reference the custom properties in `app.css`, which resolve per colour scheme, so a
 // single theme serves both light and dark mode.
 const editorTheme = EditorView.theme({
@@ -155,11 +169,7 @@ const editorTheme = EditorView.theme({
     textUnderlineOffset: '0.2em',
   },
   '.cm-inlineCode': {
-    paddingInline: '0.2em',
-    borderRadius: '0.25em',
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.9em',
-    backgroundColor: 'var(--color-code-bg)',
+    ...codeSpan,
     // Rounds and pads each line of code that wraps, not only its ends.
     boxDecorationBreak: 'clone',
   },
@@ -235,14 +245,8 @@ const editorTheme = EditorView.theme({
     borderEndStartRadius: radius,
     borderEndEndRadius: radius,
   },
-  '.cm-codeText': {
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.9em',
-  },
-  '.cm-image': {
-    paddingInline: lineInset,
-    paddingBlock: '0.5rem',
-  },
+  '.cm-codeText': codeFont,
+  '.cm-image': blockWidget,
   '.cm-image img': {
     display: 'block',
     maxInlineSize: '100%',
@@ -250,8 +254,7 @@ const editorTheme = EditorView.theme({
     borderRadius: radius,
   },
   '.cm-table': {
-    paddingInline: lineInset,
-    paddingBlock: '0.5rem',
+    ...blockWidget,
     overflowX: 'auto',
     lineHeight: '1.5',
     cursor: 'text',
@@ -269,13 +272,7 @@ const editorTheme = EditorView.theme({
     fontWeight: '600',
     backgroundColor: 'var(--color-code-bg)',
   },
-  '.cm-table code': {
-    paddingInline: '0.2em',
-    borderRadius: '0.25em',
-    fontFamily: 'var(--font-mono)',
-    fontSize: '0.9em',
-    backgroundColor: 'var(--color-code-bg)',
-  },
+  '.cm-table code': codeSpan,
   '.cm-table img': {
     maxInlineSize: '100%',
   },

@@ -1,6 +1,9 @@
 <script lang="ts">
+  import Icon from '$lib/ui/Icon.svelte'
+  import { setFileTree } from './fileTree'
   import FileTreeList from './FileTreeList.svelte'
-  import { parentOf, type DirectoryNode, type Folder } from './folder.svelte'
+  import type { Folder } from './folder.svelte'
+  import { parentOf } from './paths'
 
   interface Props {
     folder: Folder
@@ -19,11 +22,9 @@
   let creatingIn: string | null = $state(null)
   let renaming: string | null = $state(null)
 
-  const ontoggle = (directory: DirectoryNode): void => {
-    // Listing only fails if the directory went away, which the next refresh shows.
-    folder.toggle(directory).catch((error: unknown) => {
-      console.warn(error)
-    })
+  const cancel = (): void => {
+    creatingIn = null
+    renaming = null
   }
 
   /** Names a new file, beside the file shown in the editor or else at the top of the folder. */
@@ -31,47 +32,54 @@
     renaming = null
     creatingIn = current === null ? '' : parentOf(current)
   }
-  const onstartrename = (path: string): void => {
-    creatingIn = null
-    renaming = path
-  }
-  const oncancel = (): void => {
-    creatingIn = null
-    renaming = null
-  }
-  const create = (directory: string, name: string): void => {
-    oncancel()
-    oncreate(directory, name)
-  }
-  const rename = (path: string, name: string): void => {
-    oncancel()
-    onrename(path, name)
-  }
+
+  setFileTree({
+    get current() {
+      return current
+    },
+    get creatingIn() {
+      return creatingIn
+    },
+    get renaming() {
+      return renaming
+    },
+    isDirty: (path) => isDirty(path),
+    toggle: (directory) => {
+      // Listing only fails if the directory went away, which the next refresh shows.
+      folder.toggle(directory).catch((error: unknown) => {
+        console.warn(error)
+      })
+    },
+    open: (path) => {
+      onopen(path)
+    },
+    create: (directory, name) => {
+      cancel()
+      oncreate(directory, name)
+    },
+    startRename: (path) => {
+      creatingIn = null
+      renaming = path
+    },
+    rename: (path, name) => {
+      cancel()
+      onrename(path, name)
+    },
+    remove: (path) => {
+      ondelete(path)
+    },
+    cancel,
+  })
 </script>
 
 <nav aria-label="Files">
   <div class="heading">
-    <h2 title={folder.name}>{folder.name}</h2>
+    <h2 class="truncate" title={folder.name}>{folder.name}</h2>
     <button type="button" aria-label="New file" title="New file" onclick={startCreate}>
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path d="M8 3v10M3 8h10" />
-      </svg>
+      <Icon name="plus" />
     </button>
   </div>
-  <FileTreeList
-    directory={folder.root}
-    {current}
-    {isDirty}
-    {creatingIn}
-    {renaming}
-    {ontoggle}
-    {onopen}
-    oncreate={create}
-    {onstartrename}
-    onrename={rename}
-    {ondelete}
-    {oncancel}
-  />
+  <FileTreeList directory={folder.root} />
 </nav>
 
 <style>
@@ -89,26 +97,13 @@
 
   h2 {
     flex: 1;
-    overflow: hidden;
     margin: 0;
     font-size: inherit;
     font-weight: 600;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   button {
-    display: grid;
     padding: 0.375rem;
     color: var(--color-muted);
-
-    & svg {
-      inline-size: 1rem;
-      block-size: 1rem;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 1.5;
-      stroke-linecap: round;
-    }
   }
 </style>

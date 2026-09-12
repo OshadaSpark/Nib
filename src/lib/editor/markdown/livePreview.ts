@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language'
-import type { EditorState, Extension, TransactionSpec } from '@codemirror/state'
+import type { Extension } from '@codemirror/state'
 import {
   EditorView,
   keymap,
@@ -8,27 +8,10 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view'
-import type { SyntaxNode } from '@lezer/common'
 import { blockWidgets } from './blockWidgets'
 import { previewDecorations } from './decorations'
 import { linkAt, openLink } from './links'
-
-/** A change that toggles the task on the line at `pos` between `[ ]` and `[x]`, if there is one. */
-export const toggleTask = (state: EditorState, pos: number): TransactionSpec | null => {
-  const line = state.doc.lineAt(pos)
-  const markers: SyntaxNode[] = []
-  syntaxTree(state).iterate({
-    from: line.from,
-    to: line.to,
-    enter: (node) => {
-      if (node.name === 'TaskMarker') markers.push(node.node)
-    },
-  })
-  const [marker] = markers
-  if (!marker) return null
-  const checked = state.sliceDoc(marker.from + 1, marker.to - 1).trim() !== ''
-  return { changes: { from: marker.from + 1, to: marker.to - 1, insert: checked ? ' ' : 'x' } }
-}
+import { toggleTask } from './tasks'
 
 /** Opens the link at the cursor, or else toggles the task on the cursor's line. */
 const activate: Command = (view) => {

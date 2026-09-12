@@ -4,7 +4,7 @@
 
 interface FilePickerAcceptType {
   description?: string
-  accept: Record<string, string | string[]>
+  accept: Record<string, string | readonly string[]>
 }
 
 interface FilePickerOptions {

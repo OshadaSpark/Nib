@@ -1,3 +1,5 @@
+import type { Appearance } from '$lib/editor/theme'
+
 const storageKey = 'typer:preferences'
 
 export const themes = ['system', 'light', 'dark'] as const
@@ -11,6 +13,9 @@ export type Width = (typeof widths)[number]
 
 /** Text sizes in pixels, in steps of one. */
 export const sizes = { min: 14, max: 24 } as const
+
+/** The text column's width for each preference, in `ch` of the text's font. */
+const columnWidths: Record<Width, string> = { narrow: '60ch', medium: '72ch', wide: '90ch' }
 
 /** `value` if it is one of `options`. */
 const oneOf = <T>(options: readonly T[], value: unknown): T | undefined =>
@@ -35,6 +40,13 @@ export class Preferences {
   width: Width = $state('medium')
   /** Whether Markdown renders live, rather than showing as written. */
   livePreview: boolean = $state(true)
+
+  /** The text's font, size and column width, as the editor takes them. */
+  readonly appearance: Appearance = $derived({
+    font: `var(--font-${this.font})`,
+    size: `${String(this.size / 16)}rem`,
+    width: columnWidths[this.width],
+  })
 
   readonly #storage: Storage | null
 

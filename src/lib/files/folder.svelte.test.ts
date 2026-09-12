@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Folder, parentOf, resolvePath, type DirectoryNode, type TreeNode } from './folder.svelte'
+import { Folder, type DirectoryNode, type TreeNode } from './folder.svelte'
 import { fakeFolder, fakeText } from './testFiles'
 
 const names = (directory: DirectoryNode): string[] =>
@@ -206,39 +206,5 @@ describe('Folder images', () => {
     vi.spyOn(cat, 'getFile').mockRejectedValue(new DOMException('Busy', 'NotReadableError'))
 
     expect(await new Folder(handle).imageURL('cat.png')).toBeNull()
-  })
-})
-
-describe('resolvePath', () => {
-  it.each([
-    ['a.md', 'b.md', 'b.md'],
-    ['notes/a.md', 'b.md', 'notes/b.md'],
-    ['notes/a.md', './img/cat.png', 'notes/img/cat.png'],
-    ['notes/a.md', '../b.md', 'b.md'],
-    ['notes/a.md', '/b.md', 'b.md'],
-    ['a.md', 'my%20note.md#heading', 'my note.md'],
-    ['a.md', 'b.md?x=1', 'b.md'],
-    ['a.md', '100%.md', '100%.md'],
-  ])('resolves %j + %j to %j', (from, target, expected) => {
-    expect(resolvePath(from, target)).toBe(expected)
-  })
-
-  it.each([
-    ['a.md', '../b.md'],
-    ['a.md', '#heading'],
-    ['notes/a.md', '#heading'],
-    ['a.md', 'notes/'],
-  ])('finds nothing in the folder for %j + %j', (from, target) => {
-    expect(resolvePath(from, target)).toBeNull()
-  })
-})
-
-describe('parentOf', () => {
-  it.each([
-    ['a.md', ''],
-    ['notes/a.md', 'notes'],
-    ['notes/2026/a.md', 'notes/2026'],
-  ])('gives the directory of %j as %j', (path, expected) => {
-    expect(parentOf(path)).toBe(expected)
   })
 })

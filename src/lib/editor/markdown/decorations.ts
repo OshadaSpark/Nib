@@ -3,6 +3,7 @@ import type { EditorSelection, EditorState, Range } from '@codemirror/state'
 import { Decoration, type DecorationSet } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import { linkTarget } from './links'
+import { isChecked } from './tasks'
 import { BulletWidget, CheckboxWidget, EntityWidget } from './widgets'
 
 /** Hides markup. Shared, as every hidden range looks the same. */
@@ -161,7 +162,7 @@ export const previewDecorations = (
             const task = node.getChild('Task')
             const marker = task?.getChild('TaskMarker')
             if (task && marker) {
-              const checked = doc.sliceString(marker.from + 1, marker.to - 1).trim() !== ''
+              const checked = isChecked(doc, marker)
               const textFrom = Math.min(marker.to + 1, task.to)
               if (checked && textFrom < task.to) {
                 decorations.push(doneTask.range(textFrom, task.to))

@@ -1,51 +1,13 @@
+import { isEditableName } from './fileTypes'
 import { ObjectURLs } from './objectURLs'
+import { join, nameOf, parentOf } from './paths'
 import { writeFile } from './writeFile'
-
-/** The files a folder lists: Markdown and plain text. */
-const listedFile = /\.(?:md|markdown|txt)$/i
 
 /** Dot files and folders (such as `.git`) and dependencies aren't notes. */
 const hidden = (name: string): boolean => name.startsWith('.') || name === 'node_modules'
 
-const join = (directory: string, name: string): string =>
-  directory ? `${directory}/${name}` : name
-
-const nameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1)
-
 /** Errors for a path with nothing, or a directory, where a file was expected. */
 const missing = new Set(['NotFoundError', 'TypeMismatchError'])
-
-/** The directory part of a path, `''` for the folder's root. */
-export const parentOf = (path: string): string => path.slice(0, Math.max(0, path.lastIndexOf('/')))
-
-/** Whether `name` works as a file name: not empty, nor a path. */
-export const isValidName = (name: string): boolean =>
-  name.trim() !== '' && name !== '.' && name !== '..' && !/[/\\]/.test(name)
-
-/**
- * The folder path that a link or image `target` in the file at `from` points to: relative to that
- * file's directory, or to the folder's root if it starts with `/`. Query and fragment are dropped,
- * and percent-escapes decoded. `null` if it points outside the folder, or to no file.
- */
-export const resolvePath = (from: string, target: string): string | null => {
-  const [path = ''] = target.split(/[?#]/, 1)
-  let decoded = path
-  try {
-    decoded = decodeURIComponent(path)
-  } catch {
-    // Not percent-encoded after all, such as a `%` on its own.
-  }
-  if (!decoded) return null
-  const segments = decoded.startsWith('/') ? [] : from.split('/').slice(0, -1)
-  for (const segment of decoded.split('/')) {
-    if (segment === '..') {
-      if (segments.pop() === undefined) return null
-    } else if (segment !== '' && segment !== '.') {
-      segments.push(segment)
-    }
-  }
-  return decoded.endsWith('/') || segments.length === 0 ? null : segments.join('/')
-}
 
 export class FileNode {
   readonly kind = 'file'
@@ -117,7 +79,7 @@ export class Folder {
       const node = previous.find((child) => child.name === name)
       if (handle.kind === 'directory') {
         children.push(node?.kind === 'directory' ? node : new DirectoryNode(name, path, handle))
-      } else if (listedFile.test(name)) {
+      } else if (isEditableName(name)) {
         children.push(node?.kind === 'file' ? node : new FileNode(name, path, handle))
       }
     }
