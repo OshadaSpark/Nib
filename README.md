@@ -63,6 +63,8 @@ The editor is [CodeMirror 6](https://codemirror.net), configured in
   `basicSetup`, which is aimed at code editing (line numbers, fold gutters, …).
 - `extensions.ts` also picks the language by file extension: Markdown for `.md` and `.markdown`,
   plain text for everything else.
+- `extensions.ts` includes find and replace from `@codemirror/search`, in a panel above the text that
+  the theme restyles to match the app.
 - `markdown/` holds the Markdown support, which plain-text files don't load:
   - `language.ts` is GitHub Flavored Markdown with its editing keymap. Fenced code blocks are
     parsed in their own language, from the list in `codeLanguages.ts`. Each language loads on first
@@ -92,14 +94,18 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
   and restores the file's line breaks (LF or CRLF) on save, as CodeMirror normalises them to LF, and
   its UTF-8 byte-order mark, if it had one. Files that aren't valid UTF-8 text are refused rather
   than opened with replacement characters, which saving would write back.
-- `workspace.svelte.ts` implements New, Open, Save and Save as. It asks before discarding unsaved
-  changes, and reports failures in the header.
+- `workspace.svelte.ts` implements New, Open, Save and Save as. It reports failures in the header, and
+  asks before discarding unsaved changes, in the dialog from
+  [`src/lib/dialog/`](src/lib/dialog).
 
-| Shortcut       | Action  |
-| -------------- | ------- |
-| ⌘/Ctrl+O       | Open    |
-| ⌘/Ctrl+S       | Save    |
-| ⌘/Ctrl+Shift+S | Save as |
+| Shortcut                 | Action                            |
+| ------------------------ | --------------------------------- |
+| ⌘/Ctrl+O                 | Open                              |
+| ⌘/Ctrl+S                 | Save                              |
+| ⌘/Ctrl+Shift+S           | Save as                           |
+| ⌘/Ctrl+F                 | Find and replace                  |
+| Enter, Shift+Enter       | Next and previous match (in Find) |
+| ⌘/Ctrl+G, ⌘/Ctrl+Shift+G | Next and previous match           |
 
 In Markdown files, ⌘/Ctrl+click on a link opens it in a new tab, and clicking a checkbox toggles
 its task. Alt+Enter does either at the cursor. Only web and email links open, and only images with
