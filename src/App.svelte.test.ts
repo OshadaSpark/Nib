@@ -6,7 +6,7 @@ import {
   readFile,
   saveFile,
 } from '$lib/files/fileAccess'
-import { fakeFolder, handle, opened } from '$lib/files/testFiles'
+import { fakeFolder, fakeText, handle, opened } from '$lib/files/testFiles'
 import { EditorView } from '@codemirror/view'
 import { render, screen, within } from '@testing-library/svelte'
 import { userEvent, type UserEvent } from '@testing-library/user-event'
@@ -168,6 +168,42 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: 'Files' }))
     expect(screen.queryByRole('navigation', { name: 'Files' })).not.toBeInTheDocument()
+  })
+
+  it('creates, renames and deletes files in the folder', async () => {
+    const user = userEvent.setup()
+    const notes = fakeFolder('Notes', { 'ideas.md': '# Ideas' })
+    vi.mocked(canOpenFolders).mockReturnValue(true)
+    vi.mocked(openFolder).mockResolvedValue(notes)
+    vi.mocked(lastModified).mockImplementation(async (file) => (await file.getFile()).lastModified)
+    render(App)
+    await user.click(screen.getByRole('button', { name: 'Open folder' }))
+    const files = await screen.findByRole('navigation', { name: 'Files' })
+
+    await user.click(within(files).getByRole('button', { name: 'New file' }))
+    await user.type(within(files).getByRole('textbox', { name: 'New file name' }), 'plans{Enter}')
+    expect(await within(files).findByRole('button', { name: 'plans.md' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+
+    await user.click(within(files).getByRole('button', { name: 'Rename plans.md' }))
+    const name = within(files).getByRole('textbox', { name: 'New name for plans.md' })
+    await user.clear(name)
+    await user.type(name, 'goals.md{Enter}')
+    expect(await within(files).findByRole('button', { name: 'goals.md' })).toBeInTheDocument()
+    expect(screen.getByText('goals.md', { selector: 'header *' })).toBeInTheDocument()
+
+    await user.click(within(files).getByRole('button', { name: 'Rename goals.md' }))
+    await user.keyboard('{Escape}')
+    expect(within(files).queryByRole('textbox')).not.toBeInTheDocument()
+
+    await user.click(within(files).getByRole('button', { name: 'Delete goals.md' }))
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await vi.waitFor(() => {
+      expect(within(files).queryByRole('button', { name: 'goals.md' })).not.toBeInTheDocument()
+    })
+    expect(fakeText(notes, 'goals.md')).toBeUndefined()
   })
 
   it('starts a new file from the New button', async () => {

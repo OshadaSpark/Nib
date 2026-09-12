@@ -2,7 +2,7 @@ import { Text } from '@codemirror/state'
 import type { Confirm } from '$lib/dialog/confirmation.svelte'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { lastModified, openFile, openFolder, readFile, saveFile } from './fileAccess'
-import { fakeFolder, handle, opened } from './testFiles'
+import { fakeFolder, fakeText, handle, opened } from './testFiles'
 import { Workspace } from './workspace.svelte'
 
 vi.mock('./fileAccess')
@@ -480,6 +480,82 @@ describe('Workspace', () => {
 
       expect(workspace.file).toBe(ideas)
       expect(workspace.file.content.toString()).toBe('edited')
+    })
+
+    it('creates files, adding .md to names without a listed extension', async () => {
+      const notes = await openNotes()
+
+      await workspace.createFile('journal', 'tomorrow')
+
+      expect(workspace.file.name).toBe('tomorrow.md')
+      expect(workspace.file.path).toBe('journal/tomorrow.md')
+      expect(fakeText(notes, 'journal/tomorrow.md')).toBe('')
+
+      await workspace.createFile('', 'list.txt')
+      expect(workspace.file.path).toBe('list.txt')
+    })
+
+    it('ignores names that aren’t file names', async () => {
+      await openNotes()
+
+      await workspace.createFile('', 'a/b')
+      await workspace.renameFile('ideas.md', '  ')
+
+      expect(workspace.file.name).toBe('Untitled.md')
+      expect(workspace.folder?.root.children?.map((node) => node.name)).toEqual([
+        'journal',
+        'ideas.md',
+      ])
+    })
+
+    it('renames an open file, keeping its unsaved changes', async () => {
+      const notes = await openNotes()
+      await workspace.openPath('ideas.md')
+      const ideas = workspace.file
+      type(workspace, 'edited')
+
+      await workspace.renameFile('ideas.md', 'plans.txt')
+
+      expect(workspace.file).toBe(ideas)
+      expect(ideas.name).toBe('plans.txt')
+      expect(ideas.path).toBe('plans.txt')
+      expect(ideas.handle).toBe(await notes.getFileHandle('plans.txt'))
+      expect(ideas.content.toString()).toBe('edited')
+      expect(workspace.opened.get('plans.txt')).toBe(ideas)
+      expect(workspace.opened.has('ideas.md')).toBe(false)
+    })
+
+    it('renames files that aren’t open', async () => {
+      const notes = await openNotes()
+
+      await workspace.renameFile('journal/today.md', 'yesterday.md')
+
+      expect(fakeText(notes, 'journal/yesterday.md')).toBe('# Today')
+    })
+
+    it('reports failures, such as a name that’s taken', async () => {
+      await openNotes()
+
+      await workspace.createFile('', 'ideas')
+
+      expect(workspace.error).toBe('Couldn’t create ideas.')
+    })
+
+    it('deletes files after asking, closing them if open', async () => {
+      const notes = await openNotes()
+      await workspace.openPath('ideas.md')
+      confirm.mockResolvedValueOnce(false)
+
+      await workspace.deleteFile('ideas.md')
+      expect(fakeText(notes, 'ideas.md')).toBe('# Ideas')
+
+      await workspace.deleteFile('ideas.md')
+      expect(confirm).toHaveBeenLastCalledWith(
+        expect.objectContaining({ title: 'Delete ideas.md?', confirm: 'Delete' }),
+      )
+      expect(fakeText(notes, 'ideas.md')).toBeUndefined()
+      expect(workspace.file.name).toBe('Untitled.md')
+      expect(workspace.opened.size).toBe(0)
     })
 
     it('lists the folder again when checking for changes on disk', async () => {

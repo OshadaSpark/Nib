@@ -8,10 +8,16 @@ import {
   saveFile,
   type OpenedFile,
 } from './fileAccess'
-import { Folder } from './folder.svelte'
+import { Folder, isValidName, parentOf } from './folder.svelte'
 import { decodeText, TextFile } from './textFile.svelte'
 
 const untitledName = 'Untitled.md'
+
+/** Names without the extension of a listed file get `.md`, so that they show in the folder. */
+const withExtension = (name: string): string => {
+  const trimmed = name.trim()
+  return /\.(?:md|markdown|txt)$/i.test(trimmed) ? trimmed : `${trimmed}.md`
+}
 
 /**
  * The open file and folder, and the actions on them. Failures are reported through `error`, never
@@ -148,6 +154,57 @@ export class Workspace {
         this.#track(file, path ?? null)
         await folder.refresh()
       }
+    })
+  }
+
+  /** Creates an empty file named `name` in the folder's `directory`, and opens it. */
+  async createFile(directory: string, name: string): Promise<void> {
+    const { folder } = this
+    if (!folder) return
+    await this.#run(`Couldn’t create ${name}.`, async () => {
+      if (!isValidName(name) || !(await this.#confirmDiscard())) return
+      const fileName = withExtension(name)
+      const handle = await folder.create(directory, fileName)
+      const path = directory ? `${directory}/${fileName}` : fileName
+      this.#show(new TextFile(fileName, '', handle, await lastModified(handle)), path)
+    })
+  }
+
+  /** Renames the folder's file at `path`, keeping its unsaved changes if it is open. */
+  async renameFile(path: string, name: string): Promise<void> {
+    const { folder } = this
+    if (!folder) return
+    await this.#run(`Couldn’t rename ${path}.`, async () => {
+      if (!isValidName(name)) return
+      const fileName = withExtension(name)
+      const handle = await folder.rename(path, fileName)
+      const file = this.opened.get(path)
+      if (!file) return
+      const directory = parentOf(path)
+      file.name = fileName
+      file.handle = handle
+      file.modified = await lastModified(handle)
+      this.#track(file, directory ? `${directory}/${fileName}` : fileName)
+    })
+  }
+
+  /** Deletes the folder's file at `path`, after asking. */
+  async deleteFile(path: string): Promise<void> {
+    const { folder } = this
+    if (!folder) return
+    await this.#run(`Couldn’t delete ${path}.`, async () => {
+      const name = path.split('/').at(-1) ?? path
+      const confirmed = await this.#confirm({
+        title: `Delete ${name}?`,
+        message: 'It will be deleted from the folder, which can’t be undone.',
+        confirm: 'Delete',
+        cancel: 'Cancel',
+      })
+      if (!confirmed) return
+      await folder.remove(path)
+      const file = this.opened.get(path)
+      this.opened.delete(path)
+      if (file === this.file) this.file = new TextFile(untitledName)
     })
   }
 

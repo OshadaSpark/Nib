@@ -104,6 +104,45 @@ test.describe('with the File System Access API', () => {
     expect(await readText(page, 'ideas.md')).toBe('# Ideas and more')
   })
 
+  test('creates, renames and deletes files in the folder', async ({ page }) => {
+    const files = page.getByRole('navigation', { name: 'Files' })
+    const exists = (name: string) =>
+      page.evaluate(async (name) => {
+        const root = await navigator.storage.getDirectory()
+        return root.getFileHandle(name).then(
+          () => true,
+          () => false,
+        )
+      }, name)
+    await page.getByRole('button', { name: 'Open folder' }).click()
+
+    await files.getByRole('button', { name: 'New file' }).click()
+    await page.keyboard.type('plans')
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveTitle('plans.md — typer')
+    await page.keyboard.type('# Plans')
+    await page.keyboard.press('ControlOrMeta+s')
+    await expect(page).toHaveTitle('plans.md — typer')
+
+    await files.getByRole('button', { name: 'plans.md', exact: true }).hover()
+    await files.getByRole('button', { name: 'Rename plans.md' }).click()
+    await page.keyboard.type('goals')
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveTitle('goals.md — typer')
+    expect(await readText(page, 'goals.md')).toBe('# Plans')
+    expect(await exists('plans.md')).toBe(false)
+
+    await files.getByRole('button', { name: 'goals.md', exact: true }).hover()
+    await files.getByRole('button', { name: 'Delete goals.md' }).click()
+    await page
+      .getByRole('dialog', { name: 'Delete goals.md?' })
+      .getByRole('button', { name: 'Delete' })
+      .click()
+    await expect(files.getByRole('button', { name: 'goals.md', exact: true })).toBeHidden()
+    expect(await exists('goals.md')).toBe(false)
+    await expect(page).toHaveTitle('Untitled.md — typer')
+  })
+
   test('asks where to save a new file', async ({ page }) => {
     await page.keyboard.type('# Draft')
     await page.getByRole('button', { name: 'Save', exact: true }).click()

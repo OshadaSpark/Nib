@@ -69,6 +69,15 @@
     if (window.matchMedia(narrow).matches) filesShown = false
     void workspace.openPath(path)
   }
+  const createFile = (directory: string, name: string): void => {
+    void workspace.createFile(directory, name)
+  }
+  const renameFile = (path: string, name: string): void => {
+    void workspace.renameFile(path, name)
+  }
+  const deleteFile = (path: string): void => {
+    void workspace.deleteFile(path)
+  }
   const isDirty = (path: string): boolean => workspace.opened.get(path)?.dirty ?? false
   const toggleFiles = (): void => {
     filesShown = !filesShown
@@ -160,7 +169,15 @@
   <button type="button" class="scrim" tabindex="-1" aria-label="Close files" onclick={toggleFiles}
   ></button>
   <aside id="files">
-    <FileTree folder={workspace.folder} current={workspace.file.path} {isDirty} onopen={openPath} />
+    <FileTree
+      folder={workspace.folder}
+      current={workspace.file.path}
+      {isDirty}
+      onopen={openPath}
+      oncreate={createFile}
+      onrename={renameFile}
+      ondelete={deleteFile}
+    />
   </aside>
 {/if}
 
