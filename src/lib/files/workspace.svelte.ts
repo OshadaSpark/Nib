@@ -11,6 +11,10 @@ export class Workspace {
   error: string | null = $state(null)
   /** Set while an action awaits the user or the file system, so actions cannot overlap. */
   #busy = false
+  /** How many actions have started, for checks in the background to notice one did. */
+  #actions = 0
+  /** Set while checking for changes on disk, which happens in the background. */
+  #checking = false
   readonly #confirm: Confirm
 
   /** `confirm` asks the user before unsaved changes are discarded. */
@@ -73,29 +77,40 @@ export class Workspace {
    */
   async checkDisk(): Promise<void> {
     const { file } = this
-    if (!file.handle || this.#busy) return
-    // Not through `#run`, as it's no action of the user's: it neither clears nor reports errors.
-    this.#busy = true
+    if (this.#busy || this.#checking) return
+    // Not through `#run`: it's no action of the user's, so it doesn't hold up theirs, nor clear or
+    // report errors.
+    this.#checking = true
+    const actions = this.#actions
     try {
-      if ((await lastModified(file.handle)) === file.modified) return
-      const disk = await readFile(file.handle)
+      const { handle, modified } = file
+      if (!handle || (await lastModified(handle)) === modified) return
+      const disk = await readFile(handle)
+      // Leaves it to the next check if the user started an action meanwhile, such as saving.
+      if (this.#actions !== actions || file.modified !== modified) return
       const text = decodeText(disk.bytes)
-      if (text === null || file.matchesSaved(text) || !(await this.#confirmReload())) {
-        file.modified = disk.modified
-      } else {
-        file.reload(text, disk.modified)
+      this.#busy = true
+      try {
+        if (text === null || file.matchesSaved(text) || !(await this.#confirmReload())) {
+          file.modified = disk.modified
+        } else {
+          file.reload(text, disk.modified)
+        }
+      } finally {
+        this.#busy = false
       }
     } catch (error) {
       // For example, the file was moved or deleted. Saving will report it, if it still fails then.
       console.warn(error)
     } finally {
-      this.#busy = false
+      this.#checking = false
     }
   }
 
   async #run(failureMessage: string, action: () => Promise<void>): Promise<void> {
     if (this.#busy) return
     this.#busy = true
+    this.#actions += 1
     this.error = null
     try {
       await action()
