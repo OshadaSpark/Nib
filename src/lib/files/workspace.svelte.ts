@@ -1,6 +1,6 @@
 import type { Confirm } from '$lib/dialog/confirmation.svelte'
 import { openFile, saveFile } from './fileAccess'
-import { TextFile } from './textFile.svelte'
+import { decodeText, TextFile } from './textFile.svelte'
 
 const untitledName = 'Untitled.md'
 
@@ -27,8 +27,12 @@ export class Workspace {
   async open(): Promise<void> {
     await this.#run('Couldn’t open the file.', async () => {
       const opened = await openFile()
-      if (opened && (await this.#confirmDiscard())) {
-        this.file = new TextFile(opened.name, opened.text, opened.handle)
+      if (!opened) return
+      const text = decodeText(opened.bytes)
+      if (text === null) {
+        this.error = `${opened.name} isn’t a UTF-8 text file.`
+      } else if (await this.#confirmDiscard()) {
+        this.file = new TextFile(opened.name, text, opened.handle)
       }
     })
   }

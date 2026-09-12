@@ -1,4 +1,5 @@
 import { openFile, saveFile } from '$lib/files/fileAccess'
+import { handle, opened } from '$lib/files/testFiles'
 import { EditorView } from '@codemirror/view'
 import { render, screen } from '@testing-library/svelte'
 import { userEvent, type UserEvent } from '@testing-library/user-event'
@@ -8,8 +9,6 @@ import App from './App.svelte'
 vi.mock('$lib/files/fileAccess')
 
 /** Types into the editor through its view, as jsdom does not support contenteditable input. */
-const handle = (name: string): FileSystemFileHandle => ({ name }) as FileSystemFileHandle
-
 const type = (text: string): void => {
   const view = EditorView.findFromDOM(screen.getByRole('textbox', { name: 'Document' }))
   view?.dispatch({ changes: { from: view.state.doc.length, insert: text } })
@@ -68,7 +67,7 @@ describe('App', () => {
 
   it('opens a file on Ctrl+O and from the Open button', async () => {
     const user = userEvent.setup()
-    vi.mocked(openFile).mockResolvedValue({ name: 'notes.txt', text: 'hi', handle: null })
+    vi.mocked(openFile).mockResolvedValue(opened('notes.txt', 'hi'))
     render(App)
 
     await user.keyboard('{Control>}o{/Control}')
@@ -86,11 +85,7 @@ describe('App', () => {
     ['button', (user: UserEvent) => user.click(screen.getByRole('button', { name: 'Save as' }))],
   ])('saves as a new file from the %s', async (_, saveAs) => {
     const user = userEvent.setup()
-    vi.mocked(openFile).mockResolvedValue({
-      name: 'notes.md',
-      text: '',
-      handle: handle('notes.md'),
-    })
+    vi.mocked(openFile).mockResolvedValue(opened('notes.md', '', handle('notes.md')))
     render(App)
     await user.click(screen.getByRole('button', { name: 'Open' }))
     await screen.findByText('notes.md')
@@ -102,7 +97,7 @@ describe('App', () => {
 
   it('starts a new file from the New button', async () => {
     const user = userEvent.setup()
-    vi.mocked(openFile).mockResolvedValue({ name: 'notes.md', text: 'hi', handle: null })
+    vi.mocked(openFile).mockResolvedValue(opened('notes.md', 'hi'))
     render(App)
     await user.click(screen.getByRole('button', { name: 'Open' }))
     await screen.findByText('notes.md')

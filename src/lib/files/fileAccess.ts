@@ -6,7 +6,8 @@
 /** A file read from disk. */
 export interface OpenedFile {
   name: string
-  text: string
+  /** The file's bytes, undecoded: see `decodeText`. */
+  bytes: ArrayBuffer
   /** Handle for saving back to the file, if the browser supports it. */
   handle: FileSystemFileHandle | null
 }
@@ -68,13 +69,13 @@ export const openFile = async (): Promise<OpenedFile | null> => {
 
   if (!showOpenFilePicker) {
     const file = await pickWithInput()
-    return file && { name: file.name, text: await file.text(), handle: null }
+    return file && { name: file.name, bytes: await file.arrayBuffer(), handle: null }
   }
 
   const [handle] = (await pick(() => showOpenFilePicker({ types: pickerTypes }))) ?? []
   if (!handle) return null
   const file = await handle.getFile()
-  return { name: file.name, text: await file.text(), handle }
+  return { name: file.name, bytes: await file.arrayBuffer(), handle }
 }
 
 /**

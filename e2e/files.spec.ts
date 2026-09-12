@@ -91,6 +91,29 @@ test.describe('without the File System Access API', () => {
     await expect(page).toHaveTitle('notes.txt — typer')
   })
 
+  test('keeps a UTF-8 byte-order mark', async ({ page }) => {
+    await openFile(page, 'bom.txt', '\uFEFFtext')
+    await expect(lines(page)).toHaveText(['text'])
+
+    const downloadEvent = page.waitForEvent('download')
+    await page.keyboard.press('ControlOrMeta+s')
+    const bytes = await readFile(await (await downloadEvent).path())
+
+    expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf])
+    expect(bytes.subarray(3).toString()).toBe('text')
+  })
+
+  test('refuses files that aren’t UTF-8 text', async ({ page }) => {
+    const fileChooser = page.waitForEvent('filechooser')
+    await page.getByRole('button', { name: 'Open' }).click()
+    await (
+      await fileChooser
+    ).setFiles({ name: 'latin1.txt', mimeType: 'text/plain', buffer: Buffer.from([0x63, 0xe9]) })
+
+    await expect(page.getByRole('alert')).toHaveText('latin1.txt isn’t a UTF-8 text file.')
+    await expect(page).toHaveTitle('Untitled.md — typer')
+  })
+
   test('treats files without a Markdown extension as plain text', async ({ page }) => {
     await openFile(page, 'list.txt', '')
 
