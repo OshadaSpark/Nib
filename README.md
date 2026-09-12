@@ -75,6 +75,8 @@ The editor is [CodeMirror 6](https://codemirror.net), configured in
     `blockWidgets.ts` shows images below their line and renders tables in place of their source.
   - `links.ts` resolves link targets, including reference links; `widgets.ts` draws bullets,
     checkboxes, entities, images and tables.
+  - `formatting.ts` toggles bold, italic and links on the selection (⌘/Ctrl+B, I and K). Inside
+    formatted text, the same shortcut removes it.
 - `theme.ts` defines the layout and syntax highlighting. Colours come from the custom properties in
   [`src/app.css`](src/app.css), so light and dark mode need no separate themes.
 
@@ -106,6 +108,9 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
 | ⌘/Ctrl+F                 | Find and replace                  |
 | Enter, Shift+Enter       | Next and previous match (in Find) |
 | ⌘/Ctrl+G, ⌘/Ctrl+Shift+G | Next and previous match           |
+| ⌘/Ctrl+B                 | Bold (Markdown)                   |
+| ⌘/Ctrl+I                 | Italic (Markdown)                 |
+| ⌘/Ctrl+K                 | Link (Markdown)                   |
 
 In Markdown files, ⌘/Ctrl+click on a link opens it in a new tab, and clicking a checkbox toggles
 its task. Alt+Enter does either at the cursor. Only web and email links open, and only images with
