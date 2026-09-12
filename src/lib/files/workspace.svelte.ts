@@ -8,16 +8,12 @@ import {
   saveFile,
   type OpenedFile,
 } from './fileAccess'
-import { Folder, isValidName, parentOf, resolvePath } from './folder.svelte'
+import { withExtension } from './fileTypes'
+import { Folder } from './folder.svelte'
+import { isValidName, join, nameOf, parentOf, resolvePath } from './paths'
 import { decodeText, TextFile } from './textFile.svelte'
 
 const untitledName = 'Untitled.md'
-
-/** Names without the extension of a listed file get `.md`, so that they show in the folder. */
-const withExtension = (name: string): string => {
-  const trimmed = name.trim()
-  return /\.(?:md|markdown|txt)$/i.test(trimmed) ? trimmed : `${trimmed}.md`
-}
 
 /**
  * The open file and folder, and the actions on them. Failures are reported through `error`, never
@@ -74,12 +70,8 @@ export class Workspace {
         if (await this.#confirmDiscard()) this.file = existing
         return
       }
-      const text = decodeText(opened.bytes)
-      if (text === null) {
-        this.error = `${opened.name} isn’t a UTF-8 text file.`
-      } else if (await this.#confirmDiscard()) {
-        this.#show(new TextFile(opened.name, text, opened.handle, opened.modified), path ?? null)
-      }
+      const file = this.#textFile(opened)
+      if (file && (await this.#confirmDiscard())) this.#show(file, path ?? null)
     })
   }
 
@@ -99,9 +91,7 @@ export class Workspace {
 
   /** Shows the folder's file at `path`, with its unsaved changes if it has been opened before. */
   async openPath(path: string): Promise<void> {
-    const { folder } = this
-    if (!folder) return
-    await this.#run(`Couldn’t open ${path}.`, async () => {
+    await this.#inFolder(`Couldn’t open ${path}.`, async (folder) => {
       const existing = this.opened.get(path)
       if (existing === this.file || !(await this.#confirmDiscard())) return
       if (existing) {
@@ -112,13 +102,9 @@ export class Workspace {
           this.error = `There’s no ${path} in the folder.`
           return
         }
-        const opened = await readFile(handle)
-        const text = decodeText(opened.bytes)
-        if (text === null) {
-          this.error = `${opened.name} isn’t a UTF-8 text file.`
-          return
-        }
-        this.#show(new TextFile(opened.name, text, handle, opened.modified), path)
+        const file = this.#textFile(await readFile(handle))
+        if (!file) return
+        this.#show(file, path)
       }
       await folder.reveal(path)
     })
@@ -179,43 +165,35 @@ export class Workspace {
 
   /** Creates an empty file named `name` in the folder's `directory`, and opens it. */
   async createFile(directory: string, name: string): Promise<void> {
-    const { folder } = this
-    if (!folder) return
-    await this.#run(`Couldn’t create ${name}.`, async () => {
+    await this.#inFolder(`Couldn’t create ${name}.`, async (folder) => {
       if (!isValidName(name) || !(await this.#confirmDiscard())) return
       const fileName = withExtension(name)
       const handle = await folder.create(directory, fileName)
-      const path = directory ? `${directory}/${fileName}` : fileName
-      this.#show(new TextFile(fileName, '', handle, await lastModified(handle)), path)
+      const file = new TextFile(fileName, '', handle, await lastModified(handle))
+      this.#show(file, join(directory, fileName))
     })
   }
 
   /** Renames the folder's file at `path`, keeping its unsaved changes if it is open. */
   async renameFile(path: string, name: string): Promise<void> {
-    const { folder } = this
-    if (!folder) return
-    await this.#run(`Couldn’t rename ${path}.`, async () => {
+    await this.#inFolder(`Couldn’t rename ${path}.`, async (folder) => {
       if (!isValidName(name)) return
       const fileName = withExtension(name)
       const handle = await folder.rename(path, fileName)
       const file = this.opened.get(path)
       if (!file) return
-      const directory = parentOf(path)
       file.name = fileName
       file.handle = handle
       file.modified = await lastModified(handle)
-      this.#track(file, directory ? `${directory}/${fileName}` : fileName)
+      this.#track(file, join(parentOf(path), fileName))
     })
   }
 
   /** Deletes the folder's file at `path`, after asking. */
   async deleteFile(path: string): Promise<void> {
-    const { folder } = this
-    if (!folder) return
-    await this.#run(`Couldn’t delete ${path}.`, async () => {
-      const name = path.split('/').at(-1) ?? path
+    await this.#inFolder(`Couldn’t delete ${path}.`, async (folder) => {
       const confirmed = await this.#confirm({
-        title: `Delete ${name}?`,
+        title: `Delete ${nameOf(path)}?`,
         message: 'It will be deleted from the folder, which can’t be undone.',
         confirm: 'Delete',
         cancel: 'Cancel',
@@ -265,6 +243,14 @@ export class Workspace {
     }
   }
 
+  /** The text file read as `opened`, or `null` if it isn't text, which is reported. */
+  #textFile({ name, bytes, handle, modified }: OpenedFile): TextFile | null {
+    const text = decodeText(bytes)
+    if (text !== null) return new TextFile(name, text, handle, modified)
+    this.error = `${name} isn’t a UTF-8 text file.`
+    return null
+  }
+
   /** Shows `file`, keeping it among the opened files if it is in the folder. */
   #show(file: TextFile, path: string | null): void {
     this.#track(file, path)
@@ -293,6 +279,15 @@ export class Workspace {
     }
   }
 
+  /** Runs `action` on the open folder, as `#run` does, if there is one. */
+  async #inFolder(
+    failureMessage: string,
+    action: (folder: Folder) => Promise<void>,
+  ): Promise<void> {
+    const { folder } = this
+    if (folder) await this.#run(failureMessage, () => action(folder))
+  }
+
   async #confirmReload(): Promise<boolean> {
     return (
       !this.file.dirty ||
@@ -308,23 +303,19 @@ export class Workspace {
 
   /** Asks before the open file is replaced, unless it keeps its changes as one of the folder's. */
   async #confirmDiscard(): Promise<boolean> {
-    return (
-      !this.file.dirty ||
-      this.file.path !== null ||
-      this.#confirm({
-        title: 'Discard unsaved changes?',
-        message: `Your changes to ${this.file.name} will be lost.`,
-        confirm: 'Discard',
-        cancel: 'Cancel',
-      })
-    )
+    return this.#confirmLosing(this.file.path === null ? [this.file] : [])
   }
 
   /** Asks before every open file is replaced, as when opening another folder. */
   async #confirmDiscardAll(): Promise<boolean> {
     // The open file is among the opened ones if it is in the folder.
     const files = [this.file, ...this.opened.values()]
-    const dirty = files.filter((file, index) => file.dirty && files.indexOf(file) === index)
+    return this.#confirmLosing(files.filter((file, index) => files.indexOf(file) === index))
+  }
+
+  /** Asks before `files` are replaced, if any has unsaved changes. */
+  async #confirmLosing(files: readonly TextFile[]): Promise<boolean> {
+    const dirty = files.filter((file) => file.dirty)
     const [only] = dirty
     return (
       !only ||

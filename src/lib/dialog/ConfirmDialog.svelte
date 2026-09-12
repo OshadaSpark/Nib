@@ -8,6 +8,8 @@
 
   const { confirmation }: Props = $props()
 
+  const id = $props.id()
+
   let dialog: HTMLDialogElement | undefined = $state()
 
   const showModal: Attachment<HTMLDialogElement> = (element) => {
@@ -33,12 +35,12 @@
     bind:this={dialog}
     {@attach showModal}
     closedby="any"
-    aria-labelledby="dialog-title"
-    aria-describedby="dialog-message"
+    aria-labelledby="{id}-title"
+    aria-describedby="{id}-message"
     {onclose}
   >
-    <h2 id="dialog-title">{question.title}</h2>
-    <p id="dialog-message">{question.message}</p>
+    <h2 id="{id}-title">{question.title}</h2>
+    <p id="{id}-message">{question.message}</p>
     <!-- Focused first, so that pressing Enter by accident keeps the user's work. -->
     <button type="button" onclick={cancel} autofocus>{question.cancel}</button>
     <button type="button" class="confirm" onclick={confirm}>{question.confirm}</button>
@@ -54,7 +56,7 @@
     font-size: 0.875rem;
     color: var(--color-text);
     background: var(--color-bg);
-    box-shadow: 0 1rem 3rem rgb(0 0 0 / 0.2);
+    box-shadow: var(--shadow-raised);
     transition: opacity 0.15s;
 
     @starting-style {

@@ -19,6 +19,9 @@
   --color-match: light-dark(rgb(242 177 0 / 0.3), rgb(242 177 0 / 0.22));
   --color-match-current: light-dark(rgb(242 140 0 / 0.55), rgb(242 160 0 / 0.5));
 
+  /* Popovers and dialogs, above the page. */
+  --shadow-raised: 0 1rem 3rem rgb(0 0 0 / 0.2);
+
   --font-sans: system-ui, sans-serif;
   --font-serif: ui-serif, 'Iowan Old Style', Charter, Georgia, serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -75,6 +78,13 @@ button {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
+}
+
+/* Cut short with an ellipsis where the text doesn't fit on one line. */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Hidden visually, but read by screen readers. */

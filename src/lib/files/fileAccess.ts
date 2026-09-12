@@ -3,6 +3,7 @@
  * back to the opened file. Elsewhere, files are opened with a file input and saved as downloads.
  */
 
+import { markdownExtensions, textExtensions } from './fileTypes'
 import { writeFile } from './writeFile'
 
 /** A file read from disk. */
@@ -33,11 +34,11 @@ const read = async (file: File, handle: FileSystemFileHandle | null): Promise<Op
 })
 
 const pickerTypes: FilePickerAcceptType[] = [
-  { description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown'] } },
-  { description: 'Text', accept: { 'text/plain': ['.txt'] } },
+  { description: 'Markdown', accept: { 'text/markdown': markdownExtensions } },
+  { description: 'Text', accept: { 'text/plain': textExtensions } },
 ]
 
-const inputAccept = '.md,.markdown,.txt,text/markdown,text/plain'
+const inputAccept = [...markdownExtensions, ...textExtensions, 'text/markdown', 'text/plain'].join()
 
 /** Pickers reject with an `AbortError` when the user dismisses them. */
 const isAbortError = (error: unknown): boolean =>

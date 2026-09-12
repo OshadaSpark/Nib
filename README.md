@@ -38,7 +38,9 @@ src/
     preferences/    The user's preferences and their panel
     editor/         The CodeMirror editor component, its extensions and theme
     files/          Opening and saving local files and folders, and the state of the open files
-  App.svelte        Root component
+    ui/             Generic UI pieces, such as the icons
+  App.svelte        Root component: the layout, the editor and the file tree
+  Header.svelte     The header: file name, word count, file actions and their shortcuts, preferences
   main.ts           Entry point, which also registers the service worker
   serviceWorker.ts  The service worker, for working offline
 public/             Static files served as-is from the base path: icons and the app manifest
@@ -81,8 +83,8 @@ The editor is [CodeMirror 6](https://codemirror.net), configured in
     `widgets.ts` draws bullets, checkboxes, entities, images and tables.
   - `formatting.ts` toggles bold, italic and links on the selection (⌘/Ctrl+B, I and K). Inside
     formatted text, the same shortcut removes it.
-- `count.ts` counts words and characters, which the header shows for the document or the
-  selection. Counts are cached per node of the document's tree, so after an edit only the changed
+- `count.ts` counts words and characters, which the header shows (`WordCount.svelte`) for the
+  document or the selection. Counts are cached per node of the document's tree, so after an edit only the changed
   nodes are counted again.
 - `theme.ts` defines the layout and syntax highlighting. Colours come from the custom properties in
   [`src/app.css`](src/app.css), so light and dark mode need no separate themes.
@@ -95,6 +97,8 @@ than one copy of `@codemirror/state` is installed (`pnpm why @codemirror/state` 
 
 Files are opened and saved in [`src/lib/files/`](src/lib/files):
 
+- `fileTypes.ts` tells Markdown and plain-text files apart by extension, and `paths.ts` handles
+  paths within a folder (joining them, and resolving relative links).
 - `fileAccess.ts` uses the
   [File System Access API](https://developer.mozilla.org/docs/Web/API/File_System_API) where it is
   available (Chromium-based browsers), so saving writes back to the opened file. Other browsers open
@@ -110,7 +114,8 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
   [`src/lib/dialog/`](src/lib/dialog).
 - `folder.svelte.ts` models a folder opened with Open folder (Chromium only, as other browsers can't
   write to one): a tree of its Markdown and text files, leaving out dot files and `node_modules`,
-  listed lazily as directories expand. `FileTree.svelte` shows it beside the editor, or over it on
+  listed lazily as directories expand. `FileTree.svelte` shows it (its lists share state and actions
+  through a context, `fileTree.ts`) beside the editor, or over it on
   narrow screens. Switching files keeps each file's unsaved changes, undo history, cursor and scroll
   position; a dot in the tree marks the files with unsaved changes. The tree also creates files
   (named in place, and given `.md` unless they end in `.md`, `.markdown` or `.txt`), renames them,

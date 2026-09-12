@@ -1,6 +1,7 @@
 <script lang="ts">
   import { sizes, type Font, type Preferences, type Theme, type Width } from './preferences.svelte'
   import Segments from './Segments.svelte'
+  import Stepper from './Stepper.svelte'
 
   interface Props {
     /**
@@ -28,38 +29,18 @@
     ['medium', 'Medium'],
     ['wide', 'Wide'],
   ]
-
-  const smaller = (): void => {
-    preferences.size = Math.max(sizes.min, preferences.size - 1)
-  }
-  const larger = (): void => {
-    preferences.size = Math.min(sizes.max, preferences.size + 1)
-  }
 </script>
 
 <div {id} popover="auto" role="dialog" aria-label="Preferences">
   <Segments label="Theme" options={themeOptions} bind:value={preferences.theme} />
   <Segments label="Font" options={fontOptions} bind:value={preferences.font} />
-  <span id="{id}-size" class="label">Size</span>
-  <div class="stepper" role="group" aria-labelledby="{id}-size">
-    <button
-      type="button"
-      aria-label="Smaller text"
-      disabled={preferences.size <= sizes.min}
-      onclick={smaller}
-    >
-      −
-    </button>
-    <output aria-live="polite">{preferences.size}</output>
-    <button
-      type="button"
-      aria-label="Larger text"
-      disabled={preferences.size >= sizes.max}
-      onclick={larger}
-    >
-      +
-    </button>
-  </div>
+  <Stepper
+    label="Size"
+    decrease="Smaller text"
+    increase="Larger text"
+    {...sizes}
+    bind:value={preferences.size}
+  />
   <Segments label="Width" options={widthOptions} bind:value={preferences.width} />
   <label class="check">
     <input type="checkbox" bind:checked={preferences.livePreview} />
@@ -69,19 +50,6 @@
 
 <style>
   [popover] {
-    /* Under the header, at its end, where the button that opens it is… */
-    position: fixed;
-    inset: 3rem 0.75rem auto auto;
-
-    /* …or right under that button, where anchor positioning is supported. */
-    @supports (position-area: block-end) {
-      position-anchor: --preferences;
-      position-area: block-end span-inline-start;
-      position-try-fallbacks: flip-inline;
-      inset: auto;
-      margin-block-start: 0.5rem;
-    }
-
     display: none;
     grid-template-columns: auto auto;
     align-items: center;
@@ -95,15 +63,23 @@
     font-size: 0.875rem;
     color: var(--color-text);
     background: var(--color-bg);
-    box-shadow: 0 1rem 3rem rgb(0 0 0 / 0.2);
+    box-shadow: var(--shadow-raised);
+    /* Under the header, at its end, where the button that opens it is… */
+    position: fixed;
+    inset: 3rem 0.75rem auto auto;
+
+    /* …or right under that button, where anchor positioning is supported. */
+    @supports (position-area: block-end) {
+      position-anchor: --preferences;
+      position-area: block-end span-inline-start;
+      position-try-fallbacks: flip-inline;
+      inset: auto;
+      margin-block-start: 0.5rem;
+    }
 
     &:popover-open {
       display: grid;
     }
-  }
-
-  .label {
-    color: var(--color-muted);
   }
 
   .check {
@@ -116,27 +92,6 @@
     & input {
       margin: 0;
       accent-color: var(--color-accent);
-    }
-  }
-
-  .stepper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    & button {
-      inline-size: 2rem;
-      padding-inline: 0;
-      font-size: 1rem;
-
-      &:disabled {
-        opacity: 0.4;
-        cursor: default;
-      }
-    }
-
-    & output {
-      font-variant-numeric: tabular-nums;
     }
   }
 </style>

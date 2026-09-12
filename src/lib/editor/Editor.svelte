@@ -55,12 +55,15 @@
   const languageCompartment = new Compartment()
   const appearanceCompartment = new Compartment()
 
+  const appearanceExtension = (value: Appearance | null): Extension =>
+    value ? appearanceTheme(value) : []
+
   const mountEditor: Attachment<HTMLElement> = (parent) => {
     const extensions = [
       editorExtensions,
       untrack(() => extra),
       languageCompartment.of(untrack(() => language)),
-      appearanceCompartment.of(untrack(() => (appearance ? appearanceTheme(appearance) : []))),
+      appearanceCompartment.of(untrack(() => appearanceExtension(appearance))),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onchange?.(update.state.doc)
         if (update.selectionSet) onselect?.(update.state.selection)
@@ -95,9 +98,7 @@
     $effect(() => {
       if (appearance === appeared) return
       appeared = appearance
-      view.dispatch({
-        effects: appearanceCompartment.reconfigure(appearance ? appearanceTheme(appearance) : []),
-      })
+      view.dispatch({ effects: appearanceCompartment.reconfigure(appearanceExtension(appearance)) })
     })
 
     $effect(() => {

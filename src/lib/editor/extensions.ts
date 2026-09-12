@@ -1,3 +1,4 @@
+import { isMarkdownName } from '$lib/files/fileTypes'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import {
   closeSearchPanel,
@@ -21,14 +22,12 @@ import { theme } from './theme'
 /** Plain text needs no language extensions. */
 const plainText: Extension = []
 
-const markdownFileName = /\.(?:md|markdown)$/i
-
 /**
  * The language for a file, by its extension: Markdown, rendered live unless `livePreview` is off,
  * or plain text.
  */
 export const languageFor = (fileName: string, livePreview = true): Extension => {
-  if (!markdownFileName.test(fileName)) return plainText
+  if (!isMarkdownName(fileName)) return plainText
   return livePreview ? markdownSupport : markdownSourceSupport
 }
 

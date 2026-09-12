@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toggleTask } from './livePreview'
+import { toggleTask } from './tasks'
 import { markdownState } from './testState'
 
 describe('toggleTask', () => {
