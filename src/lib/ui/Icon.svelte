@@ -2,6 +2,8 @@
   /** Outline icons, as path data on a 16 × 16 grid. */
   const paths = {
     chevron: 'm6 4 4 4-4 4',
+    close: 'm4.5 4.5 7 7m0-7-7 7',
+    more: 'M3 8a.75.75 0 1 0 1.5 0a.75.75 0 1 0-1.5 0M7.25 8a.75.75 0 1 0 1.5 0a.75.75 0 1 0-1.5 0M11.5 8a.75.75 0 1 0 1.5 0a.75.75 0 1 0-1.5 0',
     pencil: 'M10.5 2.5 13.5 5.5 6 13H3v-3z',
     plus: 'M8 3v10M3 8h10',
     sidebar:

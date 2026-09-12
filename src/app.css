@@ -3,13 +3,21 @@
 
   /* `light-dark()` resolves to the value for the user's preferred colour scheme. */
   --color-bg: light-dark(#fdfdfc, #19191b);
+  /* The sidebar, a step back from the page. */
+  --color-chrome: light-dark(#f6f6f4, #141416);
+  /* Popovers and dialogs, a step forward. */
+  --color-raised: light-dark(#fff, #222225);
   --color-text: light-dark(#2b2b2e, #dcdcdf);
+  /* Text of controls and lists, quieter than the document's. */
+  --color-subtle: light-dark(#66666d, #a1a1a8);
   --color-muted: light-dark(#9a9aa1, #6e6e76);
   --color-accent: light-dark(#3b6fd8, #7ea6f4);
   --color-selection: light-dark(rgb(59 111 216 / 0.16), rgb(126 166 244 / 0.28));
   --color-hover: light-dark(rgb(0 0 0 / 0.05), rgb(255 255 255 / 0.07));
+  /* The current item in a list, such as the file shown in the editor. */
+  --color-active: light-dark(rgb(0 0 0 / 0.075), rgb(255 255 255 / 0.1));
   --color-code-bg: light-dark(rgb(0 0 0 / 0.05), rgb(255 255 255 / 0.08));
-  --color-border: light-dark(#e2e2e5, #38383d);
+  --color-border: light-dark(#e6e6e8, #2e2e33);
   --color-syntax-keyword: light-dark(#9a3fb3, #cf9cf2);
   --color-syntax-string: light-dark(#2e7d32, #9ccc8a);
   --color-syntax-literal: light-dark(#a15c00, #e5b567);
@@ -19,8 +27,13 @@
   --color-match: light-dark(rgb(242 177 0 / 0.3), rgb(242 177 0 / 0.22));
   --color-match-current: light-dark(rgb(242 140 0 / 0.55), rgb(242 160 0 / 0.5));
 
-  /* Popovers and dialogs, above the page. */
-  --shadow-raised: 0 1rem 3rem rgb(0 0 0 / 0.2);
+  /* Popovers and dialogs, above the page: a close contact shadow and a soft far one. */
+  --shadow-raised:
+    0 0 0 1px light-dark(rgb(0 0 0 / 0.04), rgb(0 0 0 / 0.4)), 0 0.25rem 0.5rem rgb(0 0 0 / 0.06),
+    0 1rem 2.5rem rgb(0 0 0 / 0.14);
+
+  /* Height of the header, which the sidebar's heading matches. */
+  --bar-height: 3rem;
 
   --font-sans: system-ui, sans-serif;
   --font-serif: ui-serif, 'Iowan Old Style', Charter, Georgia, serif;
@@ -56,6 +69,14 @@ body {
   margin: 0;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+  }
+}
+
 /* Text buttons, with a background only on hover. */
 button {
   padding: 0.25rem 0.625rem;
@@ -80,6 +101,52 @@ button {
   }
 }
 
+/* Square buttons holding only an icon. */
+.icon-button {
+  display: grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  color: var(--color-subtle);
+}
+
+/*
+ * Popovers opened from a button in the header, under the header at its end, or right under the
+ * button where anchor positioning is supported (each popover names its button in
+ * `position-anchor`).
+ */
+.popover {
+  position: fixed;
+  inset: calc(var(--bar-height) - 0.25rem) 0.5rem auto auto;
+  max-inline-size: calc(100vw - 1rem);
+  margin: 0;
+  padding: 0.375rem;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-raised);
+  transition:
+    opacity 0.15s,
+    translate 0.15s;
+
+  @supports (position-area: block-end) {
+    position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-inline;
+    inset: auto;
+    margin-block-start: 0.25rem;
+  }
+
+  &:popover-open {
+    @starting-style {
+      opacity: 0;
+      translate: 0 -0.25rem;
+    }
+  }
+}
+
 /* Cut short with an ellipsis where the text doesn't fit on one line. */
 .truncate {
   overflow: hidden;
@@ -95,17 +162,4 @@ button {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-/*
- * Header above the editor, which fills the remaining height and scrolls on its own, with the file
- * tree beside it when a folder is open.
- */
-#app {
-  display: grid;
-  grid-template:
-    'header header' auto
-    'sidebar main' minmax(0, 1fr)
-    / auto minmax(0, 1fr);
-  height: 100dvh;
 }

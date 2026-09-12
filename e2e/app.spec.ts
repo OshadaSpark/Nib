@@ -26,6 +26,7 @@ test.describe('editor', () => {
     const dialog = page.getByRole('dialog', { name: 'Discard unsaved changes?' })
     await page.keyboard.type('draft')
 
+    await page.getByRole('button', { name: 'File', exact: true }).click()
     await page.getByRole('button', { name: 'New' }).click()
     await expect(dialog).toBeVisible()
     await page.keyboard.press('Escape')
@@ -33,6 +34,7 @@ test.describe('editor', () => {
     await expect(dialog).toBeHidden()
     await expect(editor).toContainText('draft')
 
+    await page.getByRole('button', { name: 'File', exact: true }).click()
     await page.getByRole('button', { name: 'New' }).click()
     await dialog.getByRole('button', { name: 'Discard' }).click()
 
