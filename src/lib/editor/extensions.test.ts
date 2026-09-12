@@ -3,6 +3,7 @@ import { language, syntaxTree } from '@codemirror/language'
 import { EditorState, type Transaction } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { editorExtensions, languageFor } from './extensions'
+import { blockWidgets } from './markdown/blockWidgets'
 
 const createState = (doc: string, fileName = 'notes.md'): EditorState =>
   EditorState.create({ doc, extensions: [editorExtensions, languageFor(fileName)] })
@@ -19,6 +20,17 @@ describe('languageFor', () => {
   it('returns the same extension for files of the same language', () => {
     expect(languageFor('a.txt')).toBe(languageFor('b.txt'))
     expect(languageFor('a.md')).toBe(languageFor('b.md'))
+    expect(languageFor('a.md', false)).toBe(languageFor('b.md', false))
+  })
+
+  it('renders Markdown live unless asked not to', () => {
+    const rendered = EditorState.create({ extensions: languageFor('a.md') })
+    const source = EditorState.create({ extensions: languageFor('a.md', false) })
+
+    expect(source.facet(language)?.name).toBe('markdown')
+    expect(rendered.field(blockWidgets, false)).toBeDefined()
+    expect(source.field(blockWidgets, false)).toBeUndefined()
+    expect(languageFor('a.txt', false)).toBe(languageFor('a.txt'))
   })
 })
 

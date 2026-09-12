@@ -53,4 +53,16 @@ test.describe('preferences', () => {
     // A narrower column leaves more space on either side, even in a wider font.
     expect(after.inset).toBeGreaterThan(before.inset)
   })
+
+  test('turn live rendering off, to show Markdown as written', async ({ page }) => {
+    const line = page.getByRole('textbox', { name: 'Document' }).locator('.cm-line')
+    await page.keyboard.type('Some **bold**')
+    await page.keyboard.press('Home')
+    await expect(line).toHaveText('Some bold')
+
+    await page.getByRole('button', { name: 'Preferences' }).click()
+    await page.getByRole('checkbox', { name: 'Render Markdown' }).uncheck()
+
+    await expect(line).toHaveText('Some **bold**')
+  })
 })

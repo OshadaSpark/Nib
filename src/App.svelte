@@ -248,7 +248,7 @@
       doc={workspace.file.loaded}
       snapshot={workspace.file.snapshot}
       onleave={keepSnapshot(workspace.file)}
-      language={languageFor(workspace.file.name)}
+      language={languageFor(workspace.file.name, preferences.livePreview)}
       extensions={folderFiles}
       {appearance}
       {onchange}

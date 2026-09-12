@@ -33,6 +33,8 @@ export class Preferences {
   size: number = $state(17)
   /** The width of the text column. */
   width: Width = $state('medium')
+  /** Whether Markdown renders live, rather than showing as written. */
+  livePreview: boolean = $state(true)
 
   readonly #storage: Storage | null
 
@@ -49,6 +51,7 @@ export class Preferences {
     this.theme = oneOf(themes, saved.theme) ?? this.theme
     this.font = oneOf(fonts, saved.font) ?? this.font
     this.width = oneOf(widths, saved.width) ?? this.width
+    if (typeof saved.livePreview === 'boolean') this.livePreview = saved.livePreview
     const { size } = saved
     if (
       typeof size === 'number' &&
@@ -62,8 +65,8 @@ export class Preferences {
 
   /** Saves the preferences. Reads all of them, so an effect that calls it runs on every change. */
   save(): void {
-    const { theme, font, size, width } = this
-    const values = { theme, font, size, width }
+    const { theme, font, size, width, livePreview } = this
+    const values = { theme, font, size, width, livePreview }
     try {
       this.#storage?.setItem(storageKey, JSON.stringify(values))
     } catch {
