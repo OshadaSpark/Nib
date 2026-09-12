@@ -1,3 +1,4 @@
+import { ObjectURLs } from './objectURLs'
 import { writeFile } from './writeFile'
 
 /** The files a folder lists: Markdown and plain text. */
@@ -20,6 +21,31 @@ export const parentOf = (path: string): string => path.slice(0, Math.max(0, path
 /** Whether `name` works as a file name: not empty, nor a path. */
 export const isValidName = (name: string): boolean =>
   name.trim() !== '' && name !== '.' && name !== '..' && !/[/\\]/.test(name)
+
+/**
+ * The folder path that a link or image `target` in the file at `from` points to: relative to that
+ * file's directory, or to the folder's root if it starts with `/`. Query and fragment are dropped,
+ * and percent-escapes decoded. `null` if it points outside the folder, or to no file.
+ */
+export const resolvePath = (from: string, target: string): string | null => {
+  const [path = ''] = target.split(/[?#]/, 1)
+  let decoded = path
+  try {
+    decoded = decodeURIComponent(path)
+  } catch {
+    // Not percent-encoded after all, such as a `%` on its own.
+  }
+  if (!decoded) return null
+  const segments = decoded.startsWith('/') ? [] : from.split('/').slice(0, -1)
+  for (const segment of decoded.split('/')) {
+    if (segment === '..') {
+      if (segments.pop() === undefined) return null
+    } else if (segment !== '' && segment !== '.') {
+      segments.push(segment)
+    }
+  }
+  return decoded.endsWith('/') || segments.length === 0 ? null : segments.join('/')
+}
 
 export class FileNode {
   readonly kind = 'file'
@@ -69,6 +95,8 @@ const order = (a: TreeNode, b: TreeNode): number =>
  */
 export class Folder {
   readonly root: DirectoryNode
+  /** URLs for the images shown from the folder. */
+  readonly #images = new ObjectURLs()
 
   constructor(handle: FileSystemDirectoryHandle) {
     this.root = new DirectoryNode(handle.name, '', handle)
@@ -132,6 +160,22 @@ export class Folder {
       if (error instanceof DOMException && missing.has(error.name)) return null
       throw error
     }
+  }
+
+  /** A URL to show the image at `path` with, or `null` if it can't be read. */
+  async imageURL(path: string): Promise<string | null> {
+    try {
+      const file = await (await this.file(path))?.getFile()
+      return file ? this.#images.url(path, file) : null
+    } catch (error) {
+      console.warn(error)
+      return null
+    }
+  }
+
+  /** Lets go of the folder's resources, as when another folder is opened. */
+  close(): void {
+    this.#images.clear()
   }
 
   /** Where `handle` is in the folder, or `null` if it is elsewhere. */

@@ -73,8 +73,9 @@ The editor is [CodeMirror 6](https://codemirror.net), configured in
     selection touches, so it can still be edited. `decorations.ts` covers inline elements, lists,
     task lists, quotes, rules and code blocks, for the visible part of the document only.
     `blockWidgets.ts` shows images below their line and renders tables in place of their source.
-  - `links.ts` resolves link targets, including reference links; `widgets.ts` draws bullets,
-    checkboxes, entities, images and tables.
+  - `links.ts` resolves link targets, including reference links, and opens them. Relative links
+    and images go through the `localFiles` facet, which the app provides for the open folder.
+    `widgets.ts` draws bullets, checkboxes, entities, images and tables.
   - `formatting.ts` toggles bold, italic and links on the selection (⌘/Ctrl+B, I and K). Inside
     formatted text, the same shortcut removes it.
 - `count.ts` counts words and characters, which the header shows for the document or the
@@ -130,10 +131,12 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
 | ⌘/Ctrl+I                 | Italic (Markdown)                 |
 | ⌘/Ctrl+K                 | Link (Markdown)                   |
 
-In Markdown files, ⌘/Ctrl+click on a link opens it in a new tab, and clicking a checkbox toggles
-its task. Alt+Enter does either at the cursor. Only web and email links open, and only images with
-web or data URLs show; relative paths will resolve once folders are supported. Clicking a table
-shows its source, with the cursor in the clicked cell.
+In Markdown files, ⌘/Ctrl+click on a link opens it: web and email links in a new tab, and relative
+links (such as `[plan](notes/plan.md)`) in the editor, when the file is in an open folder. Clicking a
+checkbox toggles its task, and Alt+Enter does either at the cursor. Images show from web and data
+URLs, and from relative paths in an open folder. Relative paths start from the file's directory, or
+from the folder if they start with `/`. Clicking a table shows its source, with the cursor in the
+clicked cell.
 
 ## TypeScript
 

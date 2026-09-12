@@ -143,6 +143,44 @@ test.describe('with the File System Access API', () => {
     await expect(page).toHaveTitle('Untitled.md — typer')
   })
 
+  test('shows images and opens notes from relative paths in the folder', async ({ page }) => {
+    await writeText(page, 'index.md', 'See [today](journal/today.md).\n\n![A dot](img/dot.png)')
+    await page.evaluate(async () => {
+      const root = await navigator.storage.getDirectory()
+      const journal = await root.getDirectoryHandle('journal', { create: true })
+      const today = await (
+        await journal.getFileHandle('today.md', { create: true })
+      ).createWritable()
+      await today.write('# Today')
+      await today.close()
+      // A one-pixel PNG.
+      const png = Uint8Array.from(
+        atob(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=',
+        ),
+        (char) => char.charCodeAt(0),
+      )
+      const images = await root.getDirectoryHandle('img', { create: true })
+      const dot = await (await images.getFileHandle('dot.png', { create: true })).createWritable()
+      await dot.write(png)
+      await dot.close()
+    })
+
+    await page.getByRole('button', { name: 'Open folder' }).click()
+    await page
+      .getByRole('navigation', { name: 'Files' })
+      .getByRole('button', { name: 'index.md' })
+      .click()
+
+    const image = page.getByRole('img', { name: 'A dot' })
+    await expect(image).toBeVisible()
+    expect(await image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(1)
+
+    await page.getByText('today', { exact: true }).click({ modifiers: ['ControlOrMeta'] })
+    await expect(page).toHaveTitle('today.md — typer')
+    await expect(lines(page)).toHaveText(['# Today'])
+  })
+
   test('asks where to save a new file', async ({ page }) => {
     await page.keyboard.type('# Draft')
     await page.getByRole('button', { name: 'Save', exact: true }).click()

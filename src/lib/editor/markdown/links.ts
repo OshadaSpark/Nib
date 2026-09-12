@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language'
-import type { EditorState } from '@codemirror/state'
+import { Facet, type EditorState } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
 
 /** Nodes whose `URL` child belongs to them, rather than being a bare URL in the text. */
@@ -113,12 +113,36 @@ export const linkAt = (state: EditorState, pos: number, side: -1 | 1 = 1): strin
   return undefined
 }
 
-/** Opens web and email links in a new tab. Others, such as relative paths, have no target yet. */
-export const openLink = (url: string | undefined): boolean => {
-  if (!url || !/^(?:https?|mailto):/i.test(url)) return false
-  window.open(url, '_blank', 'noopener,noreferrer')
-  return true
+/**
+ * The files beside the document, such as the other notes in its folder, which relative links and
+ * images point to.
+ */
+export interface LocalFiles {
+  /** Opens the file a relative link points to. Returns whether there is one to open. */
+  open: (target: string) => boolean
+  /** A URL to show the image at a relative `src` with, or `null` if there is none. */
+  imageURL: (src: string) => Promise<string | null>
 }
 
-/** Whether an image can be shown: web and data URLs only, until relative paths resolve. */
-export const isShowableImage = (src: string): boolean => /^(?:https?:|data:image\/)/i.test(src)
+/** Where relative links and images lead, if anywhere. */
+export const localFiles = Facet.define<LocalFiles, LocalFiles | null>({
+  combine: (values) => values[0] ?? null,
+})
+
+/** Whether `url` is relative, as links to other files are: no scheme, and not only a fragment. */
+export const isRelative = (url: string): boolean =>
+  url !== '' && !/^(?:[a-z][\w+.-]*:|\/\/|#)/i.test(url)
+
+/** Opens web and email links in a new tab, and relative links through `localFiles`. */
+export const openLink = (state: EditorState, url: string | undefined): boolean => {
+  if (!url) return false
+  if (/^(?:https?|mailto):/i.test(url)) {
+    window.open(url, '_blank', 'noopener,noreferrer')
+    return true
+  }
+  return isRelative(url) && (state.facet(localFiles)?.open(url) ?? false)
+}
+
+/** Whether an image can be shown at all: from the web, a data URL, or `localFiles`. */
+export const isShowableImage = (state: EditorState, src: string): boolean =>
+  /^(?:https?:|data:image\/)/i.test(src) || (isRelative(src) && state.facet(localFiles) !== null)

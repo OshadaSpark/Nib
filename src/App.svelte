@@ -4,6 +4,7 @@
   import { Confirmation } from '$lib/dialog/confirmation.svelte'
   import { countString, countText, type Counts } from '$lib/editor/count'
   import { languageFor } from '$lib/editor/extensions'
+  import { localFiles } from '$lib/editor/markdown/links'
   import Editor from '$lib/editor/Editor.svelte'
   import type { EditorSnapshot } from '$lib/editor/snapshot'
   import DropOverlay from '$lib/files/DropOverlay.svelte'
@@ -20,6 +21,12 @@
   const onchange = (doc: Text): void => {
     workspace.file.content = doc
   }
+
+  /** Relative links and images lead to the open folder's files. */
+  const folderFiles = localFiles.of({
+    open: (target) => workspace.openLink(target),
+    imageURL: (src) => workspace.imageURL(src),
+  })
 
   /** Keeps the editor's state for `file` while another file is shown. */
   const keepSnapshot =
@@ -191,6 +198,7 @@
       snapshot={workspace.file.snapshot}
       onleave={keepSnapshot(workspace.file)}
       language={languageFor(workspace.file.name)}
+      extensions={folderFiles}
       {onchange}
       {onselect}
     />

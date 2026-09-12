@@ -1,13 +1,25 @@
 import { languageFor } from '$lib/editor/extensions'
 import Editor from '$lib/editor/Editor.svelte'
-import { Text } from '@codemirror/state'
+import { localFiles, type LocalFiles } from '$lib/editor/markdown/links'
+import { Text, type Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { fireEvent, render, screen } from '@testing-library/svelte'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const renderEditor = (doc: string, fileName = 'notes.md'): HTMLElement => {
-  render(Editor, { doc: Text.of(doc.split('\n')), language: languageFor(fileName) })
+const renderEditor = (doc: string, fileName = 'notes.md', extensions: Extension = []) => {
+  render(Editor, { doc: Text.of(doc.split('\n')), language: languageFor(fileName), extensions })
   return screen.getByRole('textbox', { name: 'Document' })
+}
+
+/** Local files with one image, `cat.png`, which open every link. */
+const files = () => {
+  const local = {
+    open: vi.fn<LocalFiles['open']>().mockReturnValue(true),
+    imageURL: vi.fn<LocalFiles['imageURL']>((src) =>
+      Promise.resolve(src === 'cat.png' ? 'blob:cat' : null),
+    ),
+  }
+  return { local, extension: localFiles.of(local) }
 }
 
 const getView = (textbox: HTMLElement): EditorView => {
@@ -127,6 +139,25 @@ describe('live preview', () => {
     expect(image.parentElement).not.toBeVisible()
   })
 
+  it('shows relative images from local files, and hides those it can’t find', async () => {
+    const { extension } = files()
+    renderEditor('![A cat](cat.png)\n\n![A dog](dog.png)', 'notes.md', extension)
+
+    await vi.waitFor(() => {
+      expect(screen.getByRole('img', { name: 'A cat' })).toHaveAttribute('src', 'blob:cat')
+    })
+    expect(screen.getByRole('img', { name: 'A dog', hidden: true }).parentElement).not.toBeVisible()
+  })
+
+  it('opens relative links through local files on ⌘/Ctrl+click', async () => {
+    const { local, extension } = files()
+    renderEditor('A [link](other.md)', 'notes.md', extension)
+
+    await fireEvent.mouseDown(screen.getByText('link'), { button: 0, metaKey: true })
+
+    expect(local.open).toHaveBeenCalledExactlyOnceWith('other.md')
+  })
+
   describe('tables', () => {
     const table = '| Drink | Price |\n| - | --: |\n| **Tea** &amp; [cake](https://a.com) | 2 |'
 
@@ -147,7 +178,7 @@ describe('live preview', () => {
 
       expect(screen.getByRole('cell', { name: 's c' })).toContainHTML('<s>s</s> <code>c</code>')
       expect(screen.getByRole('img', { name: 'i' })).toHaveAttribute('src', 'https://a.com/i.png')
-      // Relative images can't be shown yet, so they show their alt text.
+      // Without local files, relative images show their alt text.
       expect(screen.getByRole('cell', { name: 'i r' })).toHaveTextContent('r')
     })
 

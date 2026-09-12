@@ -1,5 +1,5 @@
 import { WidgetType, type EditorView } from '@codemirror/view'
-import { isShowableImage, openLink } from './links'
+import { isRelative, isShowableImage, localFiles, openLink } from './links'
 
 /** Inline Markdown content, as rendered in table cells. */
 export type Inline =
@@ -30,9 +30,18 @@ const entityElement = (entity: string): HTMLElement => {
   return span
 }
 
+/** An image from `src`, or for a relative `src`, from `localFiles`, failing if there is no file. */
 const imageElement = (src: string, alt: string, view: EditorView): HTMLImageElement => {
   const image = document.createElement('img')
-  image.src = src
+  const files = view.state.facet(localFiles)
+  if (files && isRelative(src)) {
+    void files.imageURL(src).then((url) => {
+      if (url) image.src = url
+      else image.dispatchEvent(new Event('error'))
+    })
+  } else {
+    image.src = src
+  }
   image.alt = alt
   image.referrerPolicy = 'no-referrer'
   // Loading changes the image's size, which the editor needs to measure again.
@@ -49,7 +58,9 @@ const renderInline = (content: readonly Inline[], view: EditorView): (Node | str
       case 'entity':
         return entityElement(item.entity)
       case 'image':
-        return isShowableImage(item.src) ? imageElement(item.src, item.alt, view) : item.alt
+        return isShowableImage(view.state, item.src)
+          ? imageElement(item.src, item.alt, view)
+          : item.alt
       case 'link': {
         const span = document.createElement('span')
         span.className = 'cm-link'
@@ -203,7 +214,7 @@ export class TableWidget extends WidgetType {
       const target = event.target instanceof Element ? event.target : null
       if (event.metaKey || event.ctrlKey) {
         const link = target?.closest<HTMLElement>('.cm-link')
-        if (openLink(link?.dataset.url)) return
+        if (openLink(view.state, link?.dataset.url)) return
       }
       const offset = Number(target?.closest<HTMLElement>('[data-offset]')?.dataset.offset ?? 0)
       view.dispatch({ selection: { anchor: view.posAtDOM(wrapper) + offset } })

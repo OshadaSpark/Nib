@@ -166,7 +166,7 @@ const blocks = (state: EditorState): Blocks => {
         image &&
         typeof image !== 'string' &&
         image.type === 'image' &&
-        isShowableImage(image.src)
+        isShowableImage(state, image.src)
       ) {
         const widget = new ImageWidget(image.src, image.alt)
         found.images.push(

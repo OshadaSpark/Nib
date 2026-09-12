@@ -23,6 +23,8 @@
     doc?: Text
     /** Language extensions, which can change while the editor is mounted. */
     language?: Extension
+    /** More extensions, fixed once the editor is created. */
+    extensions?: Extension
     /** Called with the new document after every change. */
     onchange?: (doc: Text) => void
     /** Called with the selection when the editor is created and whenever the selection changes. */
@@ -36,6 +38,7 @@
   const {
     doc = Text.empty,
     language = [],
+    extensions: extra = [],
     onchange,
     onselect,
     snapshot = null,
@@ -50,6 +53,7 @@
   const mountEditor: Attachment<HTMLElement> = (parent) => {
     const extensions = [
       editorExtensions,
+      untrack(() => extra),
       languageCompartment.of(untrack(() => language)),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onchange?.(update.state.doc)
