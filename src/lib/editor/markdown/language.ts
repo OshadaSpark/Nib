@@ -5,6 +5,7 @@ import { keymap } from '@codemirror/view'
 import type { Parser } from '@lezer/common'
 import { parseCode, type MarkdownParser } from '@lezer/markdown'
 import { codeLanguages } from './codeLanguages'
+import { formattingKeymap } from './formatting'
 import { livePreview } from './livePreview'
 
 /**
@@ -30,8 +31,9 @@ const markdownWithCode = new Language(markdownLanguage.data, parser, [], 'markdo
 
 /** Markdown support: the language, its editing commands and live rendering. */
 export const markdownSupport = new LanguageSupport(markdownWithCode, [
-  // Continues lists and blockquotes on Enter, and removes their markup on Backspace.
-  Prec.high(keymap.of(markdownKeymap)),
+  // Continues lists and blockquotes on Enter, and removes their markup on Backspace; formatting
+  // shortcuts. High precedence, as they replace some default bindings.
+  Prec.high(keymap.of([...markdownKeymap, ...formattingKeymap])),
   pasteURLAsLink,
   livePreview,
 ])
