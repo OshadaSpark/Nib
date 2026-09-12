@@ -21,6 +21,25 @@ test.describe('editor', () => {
     await expect(lines).toHaveText(['• first', '• second'])
   })
 
+  test('asks before discarding unsaved changes', async ({ page }) => {
+    const editor = page.getByRole('textbox', { name: 'Document' })
+    const dialog = page.getByRole('dialog', { name: 'Discard unsaved changes?' })
+    await page.keyboard.type('draft')
+
+    await page.getByRole('button', { name: 'New' }).click()
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    await expect(dialog).toBeHidden()
+    await expect(editor).toContainText('draft')
+
+    await page.getByRole('button', { name: 'New' }).click()
+    await dialog.getByRole('button', { name: 'Discard' }).click()
+
+    await expect(editor).not.toContainText('draft')
+    await expect(editor).toBeFocused()
+  })
+
   test('undoes edits', async ({ page }) => {
     const editor = page.getByRole('textbox', { name: 'Document' })
 

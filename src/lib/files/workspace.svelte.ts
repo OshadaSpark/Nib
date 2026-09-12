@@ -1,3 +1,4 @@
+import type { Confirm } from '$lib/dialog/confirmation.svelte'
 import { openFile, saveFile } from './fileAccess'
 import { TextFile } from './textFile.svelte'
 
@@ -10,17 +11,23 @@ export class Workspace {
   error: string | null = $state(null)
   /** Set while an action awaits the user or the file system, so actions cannot overlap. */
   #busy = false
+  readonly #confirm: Confirm
 
-  newFile(): void {
-    if (this.#busy) return
-    this.error = null
-    if (this.#confirmDiscard()) this.file = new TextFile(untitledName)
+  /** `confirm` asks the user before unsaved changes are discarded. */
+  constructor(confirm: Confirm) {
+    this.#confirm = confirm
+  }
+
+  async newFile(): Promise<void> {
+    await this.#run('Couldn’t create a new file.', async () => {
+      if (await this.#confirmDiscard()) this.file = new TextFile(untitledName)
+    })
   }
 
   async open(): Promise<void> {
     await this.#run('Couldn’t open the file.', async () => {
       const opened = await openFile()
-      if (opened && this.#confirmDiscard()) {
+      if (opened && (await this.#confirmDiscard())) {
         this.file = new TextFile(opened.name, opened.text, opened.handle)
       }
     })
@@ -60,7 +67,15 @@ export class Workspace {
     }
   }
 
-  #confirmDiscard(): boolean {
-    return !this.file.dirty || window.confirm(`Discard unsaved changes to ${this.file.name}?`)
+  async #confirmDiscard(): Promise<boolean> {
+    return (
+      !this.file.dirty ||
+      this.#confirm({
+        title: 'Discard unsaved changes?',
+        message: `Your changes to ${this.file.name} will be lost.`,
+        confirm: 'Discard',
+        cancel: 'Cancel',
+      })
+    )
   }
 }
