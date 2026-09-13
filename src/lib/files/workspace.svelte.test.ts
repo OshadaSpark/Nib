@@ -1,11 +1,15 @@
 import { Text } from '@codemirror/state'
 import type { Confirm } from '$lib/dialog/confirmation.svelte'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-import { lastModified, openFile, openFolder, readFile, saveFile } from './fileAccess'
-import { fakeFolder, fakeText, handle, opened } from './testFiles'
+import { installFakeDisk, type FakeDisk } from './fakeDisk'
+import { readFile, saveFile } from './fileAccess'
+import { modifiedTime } from './fileSystem'
+import { opened } from './testFiles'
 import { Workspace } from './workspace.svelte'
 
-vi.mock('./fileAccess')
+// The real functions, over the fake disk, unless a test replaces one.
+vi.mock('./fileAccess', { spy: true })
+vi.mock('./fileSystem', { spy: true })
 
 /** Replaces the content of the workspace's file, as typing in the editor would. */
 const type = (workspace: Workspace, text: string): void => {
@@ -15,8 +19,15 @@ const type = (workspace: Workspace, text: string): void => {
 describe('Workspace', () => {
   let confirm: Mock<Confirm>
   let workspace: Workspace
+  let disk: FakeDisk
 
   beforeEach(() => {
+    disk = installFakeDisk({
+      '/Docs/notes.md': 'a\r\nb',
+      '/Docs/photo.png': { base64: 'iVBORw0K/w==' },
+      '/Notes/ideas.md': '# Ideas',
+      '/Notes/journal/today.md': '# Today',
+    })
     confirm = vi.fn<Confirm>().mockResolvedValue(true)
     workspace = new Workspace(confirm)
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -27,6 +38,12 @@ describe('Workspace', () => {
     vi.restoreAllMocks()
   })
 
+  /** Opens `location` from the picker. */
+  const open = async (location: string): Promise<void> => {
+    disk.picks.open = location
+    await workspace.open()
+  }
+
   it('starts with an empty, untitled Markdown file', () => {
     expect(workspace.file.name).toBe('Untitled.md')
     expect(workspace.file.content.length).toBe(0)
@@ -35,19 +52,15 @@ describe('Workspace', () => {
 
   describe('open', () => {
     it('replaces the file with the one the user picks', async () => {
-      const notes = handle('notes.txt')
-      vi.mocked(openFile).mockResolvedValue(opened('notes.txt', 'hello', notes))
+      await open('/Docs/notes.md')
 
-      await workspace.open()
-
-      expect(workspace.file.name).toBe('notes.txt')
-      expect(workspace.file.content.toString()).toBe('hello')
-      expect(workspace.file.handle).toBe(notes)
+      expect(workspace.file.name).toBe('notes.md')
+      expect(workspace.file.content.toString()).toBe('a\nb')
+      expect(workspace.file.location).toBe('/Docs/notes.md')
     })
 
     it('keeps the file when the user cancels', async () => {
       const { file } = workspace
-      vi.mocked(openFile).mockResolvedValue(null)
 
       await workspace.open()
 
@@ -56,10 +69,9 @@ describe('Workspace', () => {
 
     it('asks before discarding unsaved changes', async () => {
       confirm.mockResolvedValue(false)
-      vi.mocked(openFile).mockResolvedValue(opened('other.md', ''))
       type(workspace, 'unsaved')
 
-      await workspace.open()
+      await open('/Docs/notes.md')
 
       expect(confirm).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'Your changes to Untitled.md will be lost.' }),
@@ -74,10 +86,9 @@ describe('Workspace', () => {
           answer = resolve
         }),
       )
-      vi.mocked(openFile).mockResolvedValue(opened('other.md', ''))
       type(workspace, 'unsaved')
 
-      const opening = workspace.open()
+      const opening = open('/Docs/notes.md')
       await vi.waitFor(() => {
         expect(confirm).toHaveBeenCalled()
       })
@@ -86,28 +97,20 @@ describe('Workspace', () => {
       await opening
 
       expect(saveFile).not.toHaveBeenCalled()
-      expect(workspace.file.name).toBe('other.md')
+      expect(workspace.file.name).toBe('notes.md')
     })
 
     it('refuses files that aren’t UTF-8 text', async () => {
       const { file } = workspace
-      vi.mocked(openFile).mockResolvedValue({
-        name: 'photo.png',
-        bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0xff]).buffer,
-        handle: null,
-        modified: 0,
-      })
 
-      await workspace.open()
+      await open('/Docs/photo.png')
 
       expect(workspace.error).toBe('photo.png isn’t a UTF-8 text file.')
       expect(workspace.file).toBe(file)
     })
 
     it('reports failures', async () => {
-      vi.mocked(openFile).mockRejectedValue(new DOMException('Denied', 'NotAllowedError'))
-
-      await workspace.open()
+      await open('/Docs/gone.md')
 
       expect(workspace.error).toBe('Couldn’t open the file.')
     })
@@ -115,51 +118,46 @@ describe('Workspace', () => {
 
   describe('openWith', () => {
     it('opens the dropped file, after asking to discard unsaved changes', async () => {
-      const notes = handle('notes.md')
       type(workspace, 'unsaved')
 
-      await workspace.openWith(() => Promise.resolve(opened('notes.md', 'dropped', notes)))
+      await workspace.openWith(() => Promise.resolve(opened('notes.md', 'dropped')))
 
       expect(confirm).toHaveBeenCalledOnce()
       expect(workspace.file.content.toString()).toBe('dropped')
-      expect(workspace.file.handle).toBe(notes)
+      expect(workspace.file.location).toBeNull()
     })
 
     it('reports files that can’t be read', async () => {
-      await workspace.openWith(() => Promise.reject(new DOMException('Gone', 'NotFoundError')))
+      await workspace.openWith(() => Promise.reject(new Error('Gone')))
 
       expect(workspace.error).toBe('Couldn’t open the file.')
     })
   })
 
   describe('save', () => {
-    it('saves to the file’s handle and marks it clean', async () => {
-      const notes = handle('notes.md')
-      vi.mocked(openFile).mockResolvedValue(opened('notes.md', 'a\r\nb', notes))
-      vi.mocked(saveFile).mockResolvedValue({ name: 'notes.md', handle: notes, modified: 1 })
-      await workspace.open()
+    it('saves to the file, with its line breaks, and marks it clean', async () => {
+      await open('/Docs/notes.md')
       type(workspace, 'a\nb\nc')
 
       await workspace.save()
 
-      expect(saveFile).toHaveBeenCalledWith('a\r\nb\r\nc', 'notes.md', notes, null)
+      expect(disk.text('/Docs/notes.md')).toBe('a\r\nb\r\nc')
       expect(workspace.file.dirty).toBe(false)
     })
 
-    it('takes the name and handle chosen for a new file', async () => {
-      const chosen = handle('chosen.md')
-      vi.mocked(saveFile).mockResolvedValue({ name: 'chosen.md', handle: chosen, modified: 1 })
+    it('asks where to save a new file, and takes the name and location chosen', async () => {
+      disk.picks.save = '/Docs/chosen.md'
       type(workspace, 'text')
 
       await workspace.save()
 
-      expect(saveFile).toHaveBeenCalledWith('text', 'Untitled.md', null, null)
+      expect(disk.lastPicker).toEqual({ defaultPath: 'Untitled.md' })
+      expect(disk.text('/Docs/chosen.md')).toBe('text')
       expect(workspace.file.name).toBe('chosen.md')
-      expect(workspace.file.handle).toBe(chosen)
+      expect(workspace.file.location).toBe('/Docs/chosen.md')
     })
 
     it('stays dirty when the user cancels', async () => {
-      vi.mocked(saveFile).mockResolvedValue(null)
       type(workspace, 'text')
 
       await workspace.save()
@@ -186,39 +184,33 @@ describe('Workspace', () => {
     })
 
     it('reports failures and clears them on the next action', async () => {
-      vi.mocked(saveFile).mockRejectedValueOnce(new Error('Disk full'))
+      disk.picks.save = '/Nowhere/notes.md'
 
       await workspace.save()
       expect(workspace.error).toBe('Couldn’t save Untitled.md.')
 
-      vi.mocked(saveFile).mockResolvedValue(null)
+      disk.picks.save = null
       await workspace.save()
       expect(workspace.error).toBeNull()
     })
   })
 
   describe('saveAs', () => {
-    it('asks where to save even when the file has a handle', async () => {
-      const notes = handle('notes.md')
-      vi.mocked(openFile).mockResolvedValue(opened('notes.md', '', notes))
-      vi.mocked(saveFile).mockResolvedValue({
-        name: 'copy.md',
-        handle: handle('copy.md'),
-        modified: 1,
-      })
-      await workspace.open()
+    it('asks where to save even when the file has a location', async () => {
+      await open('/Docs/notes.md')
+      disk.picks.save = '/Docs/copy.md'
 
       await workspace.saveAs()
 
-      expect(saveFile).toHaveBeenCalledWith('', 'notes.md', null, null)
+      expect(disk.lastPicker).toEqual({ defaultPath: 'notes.md' })
       expect(workspace.file.name).toBe('copy.md')
+      expect(disk.text('/Docs/copy.md')).toBe('a\r\nb')
     })
   })
 
   describe('newFile', () => {
     it('replaces the file with an empty, untitled one', async () => {
-      vi.mocked(openFile).mockResolvedValue(opened('notes.md', 'hi'))
-      await workspace.open()
+      await open('/Docs/notes.md')
 
       await workspace.newFile()
 
@@ -240,18 +232,15 @@ describe('Workspace', () => {
   })
 
   describe('checkDisk', () => {
-    const notes = handle('notes.md')
-
-    /** Opens notes.md, modified at time 1, and makes the disk hold `text`, modified at `modified`. */
-    const openThenChangeOnDisk = async (text: string, modified = 2): Promise<void> => {
-      vi.mocked(openFile).mockResolvedValue(opened('notes.md', 'saved', notes, 1))
-      await workspace.open()
-      vi.mocked(lastModified).mockResolvedValue(modified)
-      vi.mocked(readFile).mockResolvedValue(opened('notes.md', text, notes, modified))
+    /** Opens notes.md, then makes the disk hold `text`, as another app would. */
+    const openThenChangeOnDisk = async (text: string | null): Promise<void> => {
+      await open('/Docs/notes.md')
+      if (text !== null) disk.write('/Docs/notes.md', text)
+      vi.mocked(readFile).mockClear()
     }
 
     it('does nothing while the file is unchanged on disk', async () => {
-      await openThenChangeOnDisk('saved', 1)
+      await openThenChangeOnDisk(null)
 
       await workspace.checkDisk()
 
@@ -296,7 +285,7 @@ describe('Workspace', () => {
     })
 
     it('doesn’t ask when the file on disk still has the saved text', async () => {
-      await openThenChangeOnDisk('saved')
+      await openThenChangeOnDisk('a\r\nb')
       type(workspace, 'edited')
 
       await workspace.checkDisk()
@@ -306,8 +295,7 @@ describe('Workspace', () => {
     })
 
     it('doesn’t notice its own saves', async () => {
-      await openThenChangeOnDisk('saved')
-      vi.mocked(saveFile).mockResolvedValue({ name: 'notes.md', handle: notes, modified: 2 })
+      await openThenChangeOnDisk(null)
       type(workspace, 'edited')
       await workspace.save()
 
@@ -319,59 +307,42 @@ describe('Workspace', () => {
     it('doesn’t hold up saving, which it then leaves alone', async () => {
       await openThenChangeOnDisk('changed')
       let finishCheck: (modified: number) => void = () => undefined
-      vi.mocked(lastModified).mockReturnValueOnce(
+      vi.mocked(modifiedTime).mockReturnValueOnce(
         new Promise((resolve) => {
           finishCheck = resolve
         }),
       )
-      vi.mocked(saveFile).mockResolvedValue({ name: 'notes.md', handle: notes, modified: 3 })
       type(workspace, 'edited')
 
       const checking = workspace.checkDisk()
       await workspace.save()
-      finishCheck(2)
+      finishCheck(0)
       await checking
 
       expect(saveFile).toHaveBeenCalledOnce()
       expect(confirm).not.toHaveBeenCalled()
       expect(workspace.file.content.toString()).toBe('edited')
+      expect(disk.text('/Docs/notes.md')).toBe('edited')
     })
 
-    it('ignores files without a handle, and failures', async () => {
+    it('ignores files without a location, and failures', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => undefined)
       await workspace.checkDisk()
-      expect(lastModified).not.toHaveBeenCalled()
+      expect(modifiedTime).not.toHaveBeenCalled()
 
       await openThenChangeOnDisk('changed')
-      vi.mocked(lastModified).mockRejectedValue(new DOMException('Gone', 'NotFoundError'))
+      vi.mocked(modifiedTime).mockRejectedValue(new Error('Gone'))
       await workspace.checkDisk()
 
       expect(workspace.error).toBeNull()
-      expect(workspace.file.content.toString()).toBe('saved')
+      expect(workspace.file.content.toString()).toBe('a\nb')
     })
   })
 
   describe('folders', () => {
-    /** Reads fake files as the real `readFile` would. */
-    const readFakes = (): void => {
-      vi.mocked(readFile).mockImplementation(async (file) => {
-        const read = await file.getFile()
-        return opened(read.name, await read.text(), file, read.lastModified)
-      })
-      vi.mocked(lastModified).mockImplementation(
-        async (file) => (await file.getFile()).lastModified,
-      )
-    }
-
-    const openNotes = async (): Promise<FileSystemDirectoryHandle> => {
-      const notes = fakeFolder('Notes', {
-        'ideas.md': '# Ideas',
-        journal: { 'today.md': '# Today' },
-      })
-      vi.mocked(openFolder).mockResolvedValue(notes)
-      readFakes()
+    const openNotes = async (): Promise<void> => {
+      disk.picks.folder = '/Notes'
       await workspace.openFolder()
-      return notes
     }
 
     it('opens a folder, listing its files', async () => {
@@ -385,6 +356,16 @@ describe('Workspace', () => {
       expect(workspace.file.name).toBe('Untitled.md')
     })
 
+    it('keeps the folder when the user cancels', async () => {
+      await openNotes()
+      const { folder } = workspace
+      disk.picks.folder = null
+
+      await workspace.openFolder()
+
+      expect(workspace.folder).toBe(folder)
+    })
+
     it('opens files by path, and reveals them in the tree', async () => {
       await openNotes()
 
@@ -392,6 +373,7 @@ describe('Workspace', () => {
 
       expect(workspace.file.name).toBe('today.md')
       expect(workspace.file.path).toBe('journal/today.md')
+      expect(workspace.file.location).toBe('/Notes/journal/today.md')
       expect(workspace.file.content.toString()).toBe('# Today')
       const journal = workspace.folder?.root.children?.[0]
       expect(journal?.kind === 'directory' && journal.expanded).toBe(true)
@@ -440,56 +422,51 @@ describe('Workspace', () => {
     })
 
     it('reports paths without a file, and files that aren’t text', async () => {
-      const notes = await openNotes()
+      await openNotes()
       await workspace.openPath('gone.md')
       expect(workspace.error).toBe('There’s no gone.md in the folder.')
 
-      const binary = await notes.getFileHandle('binary.md', { create: true })
-      const writable = await binary.createWritable()
-      await writable.write('\0')
-      await writable.close()
+      disk.write('/Notes/binary.md', '\0')
       await workspace.openPath('binary.md')
       expect(workspace.error).toBe('binary.md isn’t a UTF-8 text file.')
     })
 
     it('saves new files into the folder, and tracks them there', async () => {
-      const notes = await openNotes()
-      const created = await notes.getFileHandle('new.md', { create: true })
-      vi.mocked(saveFile).mockResolvedValue({ name: 'new.md', handle: created, modified: 2 })
+      await openNotes()
+      disk.picks.save = '/Notes/new.md'
       type(workspace, 'new')
 
       await workspace.save()
 
-      expect(saveFile).toHaveBeenCalledWith('new', 'Untitled.md', null, notes)
+      expect(disk.lastPicker).toEqual({ defaultPath: '/Notes/Untitled.md' })
       expect(workspace.file.path).toBe('new.md')
       expect(workspace.opened.get('new.md')).toBe(workspace.file)
       expect(workspace.folder?.root.children?.map((node) => node.name)).toContain('new.md')
     })
 
     it('switches to a folder’s file that is opened again from the picker', async () => {
-      const notes = await openNotes()
+      await openNotes()
       await workspace.openPath('ideas.md')
       const ideas = workspace.file
       type(workspace, 'edited')
       await workspace.openPath('journal/today.md')
-      vi.mocked(openFile).mockResolvedValue(
-        opened('ideas.md', '# Ideas', await notes.getFileHandle('ideas.md')),
-      )
 
-      await workspace.open()
+      await open('/Notes/ideas.md')
 
+      expect(disk.lastPicker).toMatchObject({ defaultPath: '/Notes' })
       expect(workspace.file).toBe(ideas)
       expect(workspace.file.content.toString()).toBe('edited')
     })
 
     it('creates files, adding .md to names without a listed extension', async () => {
-      const notes = await openNotes()
+      await openNotes()
 
       await workspace.createFile('journal', 'tomorrow')
 
       expect(workspace.file.name).toBe('tomorrow.md')
       expect(workspace.file.path).toBe('journal/tomorrow.md')
-      expect(fakeText(notes, 'journal/tomorrow.md')).toBe('')
+      expect(workspace.file.location).toBe('/Notes/journal/tomorrow.md')
+      expect(disk.text('/Notes/journal/tomorrow.md')).toBe('')
 
       await workspace.createFile('', 'list.txt')
       expect(workspace.file.path).toBe('list.txt')
@@ -509,7 +486,7 @@ describe('Workspace', () => {
     })
 
     it('renames an open file, keeping its unsaved changes', async () => {
-      const notes = await openNotes()
+      await openNotes()
       await workspace.openPath('ideas.md')
       const ideas = workspace.file
       type(workspace, 'edited')
@@ -519,18 +496,18 @@ describe('Workspace', () => {
       expect(workspace.file).toBe(ideas)
       expect(ideas.name).toBe('plans.txt')
       expect(ideas.path).toBe('plans.txt')
-      expect(ideas.handle).toBe(await notes.getFileHandle('plans.txt'))
+      expect(ideas.location).toBe('/Notes/plans.txt')
       expect(ideas.content.toString()).toBe('edited')
       expect(workspace.opened.get('plans.txt')).toBe(ideas)
       expect(workspace.opened.has('ideas.md')).toBe(false)
     })
 
     it('renames files that aren’t open', async () => {
-      const notes = await openNotes()
+      await openNotes()
 
       await workspace.renameFile('journal/today.md', 'yesterday.md')
 
-      expect(fakeText(notes, 'journal/yesterday.md')).toBe('# Today')
+      expect(disk.text('/Notes/journal/yesterday.md')).toBe('# Today')
     })
 
     it('reports failures, such as a name that’s taken', async () => {
@@ -541,19 +518,23 @@ describe('Workspace', () => {
       expect(workspace.error).toBe('Couldn’t create ideas.')
     })
 
-    it('deletes files after asking, closing them if open', async () => {
-      const notes = await openNotes()
+    it('moves files to the Trash after asking, closing them if open', async () => {
+      await openNotes()
       await workspace.openPath('ideas.md')
       confirm.mockResolvedValueOnce(false)
 
       await workspace.deleteFile('ideas.md')
-      expect(fakeText(notes, 'ideas.md')).toBe('# Ideas')
+      expect(disk.text('/Notes/ideas.md')).toBe('# Ideas')
 
       await workspace.deleteFile('ideas.md')
       expect(confirm).toHaveBeenLastCalledWith(
-        expect.objectContaining({ title: 'Delete ideas.md?', confirm: 'Delete' }),
+        expect.objectContaining({
+          title: 'Delete ideas.md?',
+          message: 'It will be moved to the Trash.',
+          confirm: 'Delete',
+        }),
       )
-      expect(fakeText(notes, 'ideas.md')).toBeUndefined()
+      expect(disk.text('/Notes/ideas.md')).toBeUndefined()
       expect(workspace.file.name).toBe('Untitled.md')
       expect(workspace.opened.size).toBe(0)
     })
@@ -573,8 +554,9 @@ describe('Workspace', () => {
 
     it('gives URLs for images relative to the open file', async () => {
       vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:cat')
-      const notes = await openNotes()
-      await (await notes.getDirectoryHandle('journal')).getFileHandle('cat.png', { create: true })
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      await openNotes()
+      disk.write('/Notes/journal/cat.png', 'meow')
       expect(await workspace.imageURL('journal/cat.png')).toBeNull()
       await workspace.openPath('journal/today.md')
 
@@ -583,8 +565,8 @@ describe('Workspace', () => {
     })
 
     it('lists the folder again when checking for changes on disk', async () => {
-      const notes = await openNotes()
-      await notes.getFileHandle('added.md', { create: true })
+      await openNotes()
+      disk.write('/Notes/added.md', '')
 
       await workspace.checkDisk()
 

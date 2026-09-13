@@ -1,4 +1,5 @@
-// Paths of files in an open folder: relative to the folder, with `/` between names.
+// Paths of files: absolute (a file's location on disk), or relative to an open folder, with `/`
+// between names.
 
 export const join = (directory: string, name: string): string =>
   directory ? `${directory}/${name}` : name
@@ -8,6 +9,14 @@ export const nameOf = (path: string): string => path.slice(path.lastIndexOf('/')
 
 /** The directory part of a path, `''` for the folder's root. */
 export const parentOf = (path: string): string => path.slice(0, Math.max(0, path.lastIndexOf('/')))
+
+/** Where `location` is in the folder at `root`, or `null` if it's elsewhere. */
+export const relativePath = (root: string, location: string): string | null => {
+  const prefix = root.endsWith('/') ? root : `${root}/`
+  return location.startsWith(prefix) && location.length > prefix.length
+    ? location.slice(prefix.length)
+    : null
+}
 
 /** Whether `name` works as a file name: not empty, nor a path. */
 export const isValidName = (name: string): boolean =>

@@ -1,25 +1,27 @@
-import { isEditableName } from './fileTypes'
+import { imageTypeOf, isEditableName } from './fileTypes'
+import {
+  createFile,
+  listDirectory,
+  modifiedTime,
+  readBytes,
+  renameFile,
+  trashFile,
+} from './fileSystem'
 import { ObjectURLs } from './objectURLs'
-import { join, nameOf, parentOf } from './paths'
-import { writeFile } from './writeFile'
+import { join, nameOf, parentOf, relativePath } from './paths'
 
 /** Dot files and folders (such as `.git`) and dependencies aren't notes. */
 const hidden = (name: string): boolean => name.startsWith('.') || name === 'node_modules'
-
-/** Errors for a path with nothing, or a directory, where a file was expected. */
-const missing = new Set(['NotFoundError', 'TypeMismatchError'])
 
 export class FileNode {
   readonly kind = 'file'
   readonly name: string
   /** Relative to the folder, with `/` between names. */
   readonly path: string
-  readonly handle: FileSystemFileHandle
 
-  constructor(name: string, path: string, handle: FileSystemFileHandle) {
+  constructor(name: string, path: string) {
     this.name = name
     this.path = path
-    this.handle = handle
   }
 }
 
@@ -28,15 +30,13 @@ export class DirectoryNode {
   readonly name: string
   /** Relative to the folder, with `/` between names; `''` for the folder itself. */
   readonly path: string
-  readonly handle: FileSystemDirectoryHandle
   /** The listed entries, or `null` until the directory is first expanded. */
   children: TreeNode[] | null = $state.raw(null)
   expanded = $state(false)
 
-  constructor(name: string, path: string, handle: FileSystemDirectoryHandle) {
+  constructor(name: string, path: string) {
     this.name = name
     this.path = path
-    this.handle = handle
   }
 }
 
@@ -51,17 +51,20 @@ const order = (a: TreeNode, b: TreeNode): number =>
       : 1
 
 /**
- * A folder opened with the File System Access API: a tree of its text files, listed lazily as
- * directories are expanded, and the file operations on it. Methods reject when the file system
- * does, for example if a file was deleted meanwhile.
+ * A folder on disk: a tree of its text files, listed lazily as directories are expanded, and the
+ * file operations on it, by paths relative to it. Methods reject when the file system does, for
+ * example if a file was deleted meanwhile.
  */
 export class Folder {
+  /** The folder's absolute path. */
+  readonly location: string
   readonly root: DirectoryNode
   /** URLs for the images shown from the folder. */
   readonly #images = new ObjectURLs()
 
-  constructor(handle: FileSystemDirectoryHandle) {
-    this.root = new DirectoryNode(handle.name, '', handle)
+  constructor(location: string) {
+    this.location = location
+    this.root = new DirectoryNode(nameOf(location), '')
     this.root.expanded = true
   }
 
@@ -69,18 +72,29 @@ export class Folder {
     return this.root.name
   }
 
+  /** The absolute path of `path` in the folder. */
+  locationOf(path: string): string {
+    return path ? join(this.location, path) : this.location
+  }
+
+  /** Where `location` is in the folder, or `null` if it is elsewhere. */
+  pathOf(location: string): string | null {
+    return relativePath(this.location, location)
+  }
+
   /** Lists `directory`, keeping the nodes of entries that remain, so that they stay expanded. */
   async list(directory: DirectoryNode = this.root): Promise<void> {
     const previous = directory.children ?? []
     const children: TreeNode[] = []
-    for await (const [name, handle] of directory.handle.entries()) {
+    const entries = await listDirectory(this.locationOf(directory.path))
+    for (const { name, directory: isDirectory } of entries) {
       if (hidden(name)) continue
       const path = join(directory.path, name)
       const node = previous.find((child) => child.name === name)
-      if (handle.kind === 'directory') {
-        children.push(node?.kind === 'directory' ? node : new DirectoryNode(name, path, handle))
+      if (isDirectory) {
+        children.push(node?.kind === 'directory' ? node : new DirectoryNode(name, path))
       } else if (isEditableName(name)) {
-        children.push(node?.kind === 'file' ? node : new FileNode(name, path, handle))
+        children.push(node?.kind === 'file' ? node : new FileNode(name, path))
       }
     }
     directory.children = children.sort(order)
@@ -113,22 +127,14 @@ export class Folder {
     if (!directory.children) await this.list(directory)
   }
 
-  /** The file at `path`, whether listed or not, or `null` if there is none. */
-  async file(path: string): Promise<FileSystemFileHandle | null> {
-    try {
-      return await (await this.#directory(parentOf(path))).getFileHandle(nameOf(path))
-    } catch (error) {
-      // No such file or directory, or a directory where a file was expected.
-      if (error instanceof DOMException && missing.has(error.name)) return null
-      throw error
-    }
-  }
-
   /** A URL to show the image at `path` with, or `null` if it can't be read. */
   async imageURL(path: string): Promise<string | null> {
     try {
-      const file = await (await this.file(path))?.getFile()
-      return file ? this.#images.url(path, file) : null
+      const location = this.locationOf(path)
+      const cached = this.#images.get(path, await modifiedTime(location))
+      if (cached) return cached
+      const { bytes, modified } = await readBytes(location)
+      return this.#images.set(path, new Blob([bytes], { type: imageTypeOf(path) }), modified)
     } catch (error) {
       console.warn(error)
       return null
@@ -140,67 +146,31 @@ export class Folder {
     this.#images.clear()
   }
 
-  /** Where `handle` is in the folder, or `null` if it is elsewhere. */
-  async pathOf(handle: FileSystemHandle): Promise<string | null> {
-    return (await this.root.handle.resolve(handle))?.join('/') ?? null
-  }
-
-  /** Creates an empty file named `name` in `directory`. Rejects if the name is taken. */
-  async create(directory: string, name: string): Promise<FileSystemFileHandle> {
-    const parent = await this.#directory(directory)
-    await this.#assertFree(parent, name)
-    const handle = await parent.getFileHandle(name, { create: true })
+  /**
+   * Creates an empty file named `name` in `directory`, returning its modified time. Rejects if the
+   * name is taken.
+   */
+  async create(directory: string, name: string): Promise<number> {
+    const modified = await createFile(this.locationOf(join(directory, name)))
     await this.#listed(directory)
-    return handle
+    return modified
   }
 
-  /** Renames the file at `path` within its directory. Rejects if the name is taken. */
-  async rename(path: string, name: string): Promise<FileSystemFileHandle> {
+  /**
+   * Renames the file at `path` within its directory, returning its modified time. Rejects if the
+   * name is taken.
+   */
+  async rename(path: string, name: string): Promise<number> {
     const directory = parentOf(path)
-    const parent = await this.#directory(directory)
-    const handle = await parent.getFileHandle(nameOf(path))
-    // A name differing only in case finds the file itself on case-insensitive file systems.
-    if (name.toLowerCase() !== handle.name.toLowerCase()) await this.#assertFree(parent, name)
-    let renamed: FileSystemFileHandle
-    try {
-      if (!handle.move) throw new DOMException('move() is not supported', 'NotSupportedError')
-      await handle.move(name)
-      renamed = handle
-    } catch {
-      // Where moving isn't available, copy the file under its new name, then delete the original,
-      // unless the copy is the original, as on a case-insensitive file system.
-      renamed = await parent.getFileHandle(name, { create: true })
-      if (await renamed.isSameEntry(handle)) {
-        throw new DOMException(`Can’t rename ${handle.name} to ${name}`, 'NotSupportedError')
-      }
-      await writeFile(renamed, await handle.getFile())
-      await parent.removeEntry(handle.name)
-    }
+    const modified = await renameFile(this.locationOf(path), this.locationOf(join(directory, name)))
     await this.#listed(directory)
-    return renamed
+    return modified
   }
 
-  /** Deletes the file at `path`. */
+  /** Moves the file at `path` to the Trash. */
   async remove(path: string): Promise<void> {
-    const directory = parentOf(path)
-    await (await this.#directory(directory)).removeEntry(nameOf(path))
-    await this.#listed(directory)
-  }
-
-  async #directory(path: string): Promise<FileSystemDirectoryHandle> {
-    let directory = this.root.handle
-    for (const name of path.split('/').filter(Boolean)) {
-      directory = await directory.getDirectoryHandle(name)
-    }
-    return directory
-  }
-
-  async #assertFree(parent: FileSystemDirectoryHandle, name: string): Promise<void> {
-    const taken = await parent.getFileHandle(name).then(
-      () => true,
-      () => false,
-    )
-    if (taken) throw new DOMException(`${name} already exists`, 'InvalidModificationError')
+    await trashFile(this.locationOf(path))
+    await this.#listed(parentOf(path))
   }
 
   /** Lists the directory at `path` again, if it has been listed. */

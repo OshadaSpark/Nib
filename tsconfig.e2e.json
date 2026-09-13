@@ -4,7 +4,9 @@
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "nodenext",
-    "types": ["node"]
+    "types": ["node"],
+    // The E2E tests share the fake disk with the unit tests (`src/lib/files/fakeDisk.ts`).
+    "allowImportingTsExtensions": true
   },
-  "include": ["e2e/**/*.ts", "src/lib/files/file-system-access.d.ts"]
+  "include": ["e2e/**/*.ts"]
 }

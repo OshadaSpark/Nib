@@ -27,9 +27,11 @@
     input.setSelectionRange(0, extension > 0 ? extension : input.value.length)
   }
 
+  // The key's default is prevented, as the editor may take focus before its input would follow.
   const onkeydown = (event: KeyboardEvent & { currentTarget: HTMLInputElement }): void => {
-    if (event.key === 'Enter') finish(event.currentTarget.value)
-    else if (event.key === 'Escape') finish(null)
+    if (event.key !== 'Enter' && event.key !== 'Escape') return
+    event.preventDefault()
+    finish(event.key === 'Enter' ? event.currentTarget.value : null)
   }
 
   const onblur = (event: FocusEvent & { currentTarget: HTMLInputElement }): void => {

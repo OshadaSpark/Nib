@@ -37,7 +37,7 @@
   })
 
   /** "Edited" with unsaved changes, "Saved" for a file on disk without them. */
-  const state = $derived(file.dirty ? 'Edited' : file.handle ? 'Saved' : null)
+  const state = $derived(file.dirty ? 'Edited' : file.location !== null ? 'Saved' : null)
 </script>
 
 <!-- Everything in the status bar is also in the editor, so it isn't announced as it changes. -->

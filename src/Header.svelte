@@ -3,7 +3,6 @@
   import { onMount } from 'svelte'
   import { setAppMenu } from '$lib/desktop/menu'
   import Toolbar from '$lib/editor/Toolbar.svelte'
-  import { canOpenFolders } from '$lib/files/fileAccess'
   import { isMarkdownName } from '$lib/files/fileTypes'
   import type { Workspace } from '$lib/files/workspace.svelte'
   import type { Preferences } from '$lib/preferences/preferences.svelte'
@@ -74,9 +73,7 @@
     [
       { label: 'New', run: newFile, keys: ['N'] },
       { label: 'Open', run: open, keys: ['O'] },
-      ...(canOpenFolders()
-        ? [{ label: 'Open folder', run: openFolder, keys: ['O', true] } satisfies Command]
-        : []),
+      { label: 'Open folder', run: openFolder, keys: ['O', true] },
     ],
     [
       { label: 'Save', run: save, keys: ['S'] },
@@ -88,14 +85,17 @@
     setAppMenu({
       newFile,
       open,
-      openFolder: canOpenFolders() ? openFolder : undefined,
+      openFolder,
       save,
       saveAs,
       settings: openSettings,
     }).catch(console.error)
   })
 
-  /** Handles ⌘/Ctrl+O (open), ⌘/Ctrl+S (save), ⌘/Ctrl+Shift+S (save as) and ⌘/Ctrl+, (settings). */
+  /**
+   * Handles ⌘/Ctrl+O (open), ⌘/Ctrl+Shift+O (open folder), ⌘/Ctrl+S (save), ⌘/Ctrl+Shift+S (save
+   * as) and ⌘/Ctrl+, (settings). The page gets keys before the menu bar, whose items show them.
+   */
   const onkeydown = (event: KeyboardEvent): void => {
     if (!(event.metaKey || event.ctrlKey) || event.altKey) return
 
@@ -106,7 +106,8 @@
         break
       case 'o':
         event.preventDefault()
-        open()
+        if (event.shiftKey) openFolder()
+        else open()
         break
       case 's':
         event.preventDefault()

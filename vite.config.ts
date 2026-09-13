@@ -26,9 +26,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,svelte}'],
-      // These are exercised by the E2E suite instead: `main.ts` only bootstraps the app, and
-      // `fileAccess.ts` wraps browser file APIs that jsdom does not implement.
-      exclude: ['src/**/*.test.ts', 'src/**/*.d.ts', 'src/main.ts', 'src/lib/files/fileAccess.ts'],
+      // `main.ts` only bootstraps the app, which the E2E suite covers.
+      exclude: ['src/**/*.test.ts', 'src/main.ts'],
       thresholds: {
         lines: 80,
         functions: 80,

@@ -24,16 +24,15 @@ describe('TextFile', () => {
     expect(file.dirty).toBe(false)
   })
 
-  it('is clean after saving, under the name and handle it was saved as', () => {
+  it('is clean after saving, under the name and location it was saved as', () => {
     const file = new TextFile('Untitled.md')
-    const handle = { name: 'saved.md' } as FileSystemFileHandle
 
     file.content = edit(file, 'text')
-    file.markSaved(file.content, 'saved.md', handle, 5)
+    file.markSaved(file.content, 'saved.md', '/Notes/saved.md', 5)
 
     expect(file.dirty).toBe(false)
     expect(file.name).toBe('saved.md')
-    expect(file.handle).toBe(handle)
+    expect(file.location).toBe('/Notes/saved.md')
     expect(file.modified).toBe(5)
   })
 
@@ -42,7 +41,7 @@ describe('TextFile', () => {
     const saved = edit(file, 'saved')
 
     file.content = edit(file, 'saved, then edited')
-    file.markSaved(saved, file.name, null, null)
+    file.markSaved(saved, file.name, '/Notes/notes.md', 1)
 
     expect(file.dirty).toBe(true)
   })

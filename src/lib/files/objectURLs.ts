@@ -1,14 +1,19 @@
-/** Object URLs for files, kept per key until the file changes, and revoked together. */
+/** Object URLs for files' bytes, kept per key until the file changes, and revoked together. */
 export class ObjectURLs {
   readonly #urls = new Map<string, { url: string; modified: number }>()
 
-  /** The URL for `file`, made again if it was modified since the last one for `key`. */
-  url(key: string, file: File): string {
+  /** The URL made for `key`, if its file wasn't modified since. */
+  get(key: string, modified: number): string | undefined {
     const cached = this.#urls.get(key)
-    if (cached?.modified === file.lastModified) return cached.url
+    return cached?.modified === modified ? cached.url : undefined
+  }
+
+  /** Makes the URL for `key` from `blob`, as modified at `modified`, replacing any before. */
+  set(key: string, blob: Blob, modified: number): string {
+    const cached = this.#urls.get(key)
     if (cached) URL.revokeObjectURL(cached.url)
-    const url = URL.createObjectURL(file)
-    this.#urls.set(key, { url, modified: file.lastModified })
+    const url = URL.createObjectURL(blob)
+    this.#urls.set(key, { url, modified })
     return url
   }
 
