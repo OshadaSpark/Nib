@@ -1,5 +1,6 @@
 mod files;
 mod opened;
+mod watch;
 mod window;
 
 /// Runs the app until its last window closes.
@@ -14,6 +15,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(opened::Opened::default())
+        .manage(watch::Watching::default())
         .invoke_handler(tauri::generate_handler![
             files::read_file,
             files::modified,
@@ -23,6 +25,7 @@ pub fn run() {
             files::rename_file,
             files::trash,
             opened::opened_files,
+            watch::watch,
             window::set_document_edited,
         ])
         .build(tauri::generate_context!())

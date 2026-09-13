@@ -4,6 +4,7 @@
   import { EditorView } from '@codemirror/view'
   import { onMount } from 'svelte'
   import { MediaQuery } from 'svelte/reactivity'
+  import { onDiskChange, watchDisk } from '$lib/desktop/diskWatch'
   import { watchOpenedFiles } from '$lib/desktop/openedFiles'
   import { whileMounted } from '$lib/desktop/whileMounted'
   import {
@@ -57,6 +58,11 @@
     setWindowTheme(preferences.theme === 'system' ? null : preferences.theme).catch(console.error)
   })
 
+  // Changes other apps make to the open folder, or else the open file, show as they happen.
+  $effect(() => {
+    watchDisk(workspace.folder?.location ?? workspace.file.location).catch(console.error)
+  })
+
   /** Read before the effect below first saves what's open, which is nothing yet. */
   const lastSession = loadSession()
   $effect(() => {
@@ -87,6 +93,11 @@
         }),
       ),
       whileMounted(guardClosing(() => workspace.confirmClose())),
+      whileMounted(
+        onDiskChange(() => {
+          void workspace.checkDisk()
+        }),
+      ),
       whileMounted(openFromSystem()),
     ]
     return () => {
@@ -173,7 +184,10 @@
     workspace.error = null
   }
 
-  /** Coming back to the page, for example from another app, is when the file may have changed. */
+  /**
+   * Coming back to the window, for example from another app, the file may have changed: a check for
+   * what watching the disk may miss, as on some network volumes.
+   */
   const onfocus = (): void => {
     void workspace.checkDisk()
   }
