@@ -19,9 +19,35 @@ pnpm exec playwright install   # browsers for the E2E tests (first time only)
 pnpm tauri dev                 # the app, with the frontend reloading as it changes
 ```
 
-`pnpm tauri build` builds `src-tauri/target/release/bundle/macos/Nib.app` (about 4 MB) and a disk
-image. Copy the app to `/Applications` to install it. `pnpm tauri build --bundles app` builds only
-the app.
+### Installing
+
+```sh
+pnpm app:install   # builds Nib.app and puts it in /Applications, replacing the one there
+```
+
+`pnpm tauri build` builds `src-tauri/target/release/bundle/macos/Nib.app` and a disk image
+(`bundle/dmg/`). The app is signed ad hoc (`signingIdentity: "-"`), without an Apple developer
+account: it runs on the Mac that built it. On another Mac, Gatekeeper blocks a downloaded copy
+until it's allowed in System Settings → Privacy & Security (Open Anyway), or its quarantine is
+removed with `xattr -dr com.apple.quarantine Nib.app`. Each build is a new signature, so macOS may
+ask again for access to protected folders (Desktop, Documents) that the app opens without the open
+panel, such as the last folder on launch.
+
+Measured on a MacBook Air (M5, macOS 26), with a small file open:
+
+| Measure                  | Value                                                       |
+| ------------------------ | ----------------------------------------------------------- |
+| App / disk image         | 4.8 MB / 1.9 MB                                             |
+| Launch to window         | 0.23 s (the first launch after installing: about 1 s)       |
+| Launch to a working page | 0.33 s                                                      |
+| Memory (footprint, idle) | about 130 MB: the app 27 MB, WebKit's page, GPU and network |
+
+### Releasing
+
+Pushing a tag for the version in `package.json` (such as `v0.2.0`, after bumping it) runs
+[`.github/workflows/release.yml`](.github/workflows/release.yml), which builds the app on macOS and
+attaches its disk image to a GitHub release of that name. The app takes its version from
+`package.json` (`version` in `tauri.conf.json` points there).
 
 ## Scripts
 
@@ -29,6 +55,7 @@ the app.
 | -------------------- | --------------------------------------------------------------------------- |
 | `pnpm tauri dev`     | Run the app, with the frontend's dev server and HMR                         |
 | `pnpm tauri build`   | Build the app and its disk image                                            |
+| `pnpm app:install`   | Build the app and install it in `/Applications`                             |
 | `pnpm dev`           | Start the frontend's dev server alone, to use in a browser                  |
 | `pnpm build`         | Build the frontend into `dist/`, which the app embeds                       |
 | `pnpm preview`       | Serve the frontend's build locally                                          |
@@ -138,10 +165,10 @@ Files are known by their absolute path, their location. The Rust side reads and 
   position; a dot in the tree marks the files with unsaved changes. The tree also creates files
   (named in place, and given `.md` unless they end in `.md`, `.markdown` or `.txt`), renames them,
   keeping unsaved changes, and moves them to the Trash after asking.
-- When the window regains focus, the workspace lists the folder again and checks whether the open
-  file changed on disk. It reloads a file without unsaved changes, and asks first otherwise. The
-  editor takes over the new content without remounting (`difference.ts`), so the cursor and undo
-  history stay.
+- When something changes on disk (see `diskWatch.ts` below), and when the window regains focus, the
+  workspace lists the folder again and checks whether the open file changed. It reloads a file
+  without unsaved changes, and asks first otherwise. The editor takes over the new content without
+  remounting (`difference.ts`), so the cursor and undo history stay.
 
 | Shortcut                 | Action                            |
 | ------------------------ | --------------------------------- |
@@ -196,8 +223,8 @@ in the system's WebKit (WKWebView):
   (opener), the clipboard, and the window's size and position, kept between launches (window
   state). The release profile in `Cargo.toml` optimises for size.
 - `src/files.rs` reads and writes files (see Files), `src/opened.rs` keeps the files opened from the
-  system until the page asks for them, and `src/window.rs` shows the dot for unsaved changes in the
-  window's close button.
+  system until the page asks for them, `src/watch.rs` watches what's open for changes, and
+  `src/window.rs` shows the dot for unsaved changes in the window's close button.
 - `icons/` holds the app's icons, generated from `icon.svg` with `pnpm tauri icon src-tauri/icons/icon.svg`
   (then delete the icons for other platforms, keeping `icon.icns` and `icon.png`).
 
@@ -211,6 +238,11 @@ nothing outside the app (as in tests):
   buttons and the system's panels), tells when it goes full screen (where the room kept for its
   buttons goes too), and guards closing it: the close button, ⌘W and Quit ask before unsaved
   changes are lost. Quitting from the Dock doesn't: Tauri can't hold that up.
+- `diskWatch.ts` watches the open folder (or, without one, the open file) through
+  `src-tauri/src/watch.rs`, so that changes other apps make (sync, Git) show as they happen: the
+  tree lists new files, and the open file reloads, or asks first with unsaved changes. Changes in
+  dot folders such as `.git` are left out. Coming back to the window checks too, for what watching
+  may miss.
 - `openedFiles.ts` opens files opened from the system: `.md`, `.markdown` and `.txt` files are
   associated with the app (`bundle.fileAssociations`), so double-clicking one in Finder, Open With,
   or dropping one on the app's Dock icon opens it, with its location. Without any on launch, the app
@@ -282,6 +314,9 @@ does, so the frontend's own code runs down to those calls.
 2. **unit**: unit and component tests with coverage
 3. **e2e**: Playwright tests in all browsers (the HTML report is uploaded as an artifact)
 4. **rust**: on macOS, Rust formatting, Clippy and tests
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) builds and publishes the app for a
+version tag (see Releasing).
 
 Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml)) opens weekly update PRs for npm
 packages, Rust crates and GitHub Actions.
