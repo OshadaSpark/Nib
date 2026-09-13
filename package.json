@@ -1,13 +1,14 @@
 {
   "name": "nib",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "app:install": "tauri build --bundles app && rm -rf /Applications/Nib.app && ditto src-tauri/target/release/bundle/macos/Nib.app /Applications/Nib.app",
     "check": "svelte-check --tsconfig ./tsconfig.app.json --fail-on-warnings && tsc -p tsconfig.node.json && tsc -p tsconfig.e2e.json",
     "check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "lint": "eslint . --max-warnings=0",

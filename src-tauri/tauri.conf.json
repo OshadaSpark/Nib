@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Nib",
-  "version": "0.1.0",
+  "version": "../package.json",
   "identifier": "io.github.oshadaspark.nib",
   "build": {
     "frontendDist": "../dist",
@@ -68,7 +68,8 @@
     ],
     "icon": ["icons/icon.icns", "icons/icon.png"],
     "macOS": {
-      "minimumSystemVersion": "26.0"
+      "minimumSystemVersion": "26.0",
+      "signingIdentity": "-"
     }
   }
 }
