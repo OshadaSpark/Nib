@@ -1,4 +1,5 @@
 import { installFakeDisk, type FakeDisk } from '$lib/files/fakeDisk'
+import { onDiskChange, watchDisk } from '$lib/desktop/diskWatch'
 import { watchOpenedFiles } from '$lib/desktop/openedFiles'
 import { guardClosing } from '$lib/desktop/window'
 import { openFile, saveFile } from '$lib/files/fileAccess'
@@ -12,6 +13,7 @@ import App from './App.svelte'
 // The real functions, over the fake disk, spied on.
 vi.mock('$lib/files/fileAccess', { spy: true })
 // Outside the app, these do nothing; they are stood in for to check what App gives them.
+vi.mock('$lib/desktop/diskWatch', { spy: true })
 vi.mock('$lib/desktop/openedFiles', { spy: true })
 vi.mock('$lib/desktop/window', { spy: true })
 // A clipboard in memory.
@@ -470,6 +472,21 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Discard' }))
 
     expect(await closing).toBe(true)
+  })
+
+  it('watches the open folder, and shows what changes on disk', async () => {
+    const user = userEvent.setup()
+    disk.picks.folder = '/Notes'
+    render(App)
+    await user.click(command('Open folder'))
+    const files = await screen.findByRole('navigation', { name: 'Files' })
+    expect(watchDisk).toHaveBeenLastCalledWith('/Notes')
+
+    disk.write('/Notes/added.md', '')
+    const changed = vi.mocked(onDiskChange).mock.calls[0]?.[0]
+    changed?.()
+
+    expect(await within(files).findByRole('button', { name: 'added.md' })).toBeInTheDocument()
   })
 
   it('opens the files opened from the system, or else what was open last time', async () => {
