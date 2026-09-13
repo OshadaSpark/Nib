@@ -36,19 +36,4 @@ test.describe('live preview', () => {
 
     await expect(lines.first()).toHaveText(/^## \w*X\w*$/)
   })
-
-  test('opens a link in a new tab on ⌘/Ctrl+click', async ({ context, page }) => {
-    await context.route('https://example.com/', (route) => route.fulfill({ body: 'Example' }))
-    const editor = page.getByRole('textbox', { name: 'Document' })
-
-    await page.keyboard.type('A [link](https://example.com/)')
-    await page.keyboard.press('Home')
-    await expect(editor).toHaveText('A link')
-
-    const popup = page.waitForEvent('popup')
-    await editor.getByText('link').click({ modifiers: ['ControlOrMeta'] })
-
-    await expect(await popup).toHaveURL('https://example.com/')
-    await expect(editor).toHaveText('A link')
-  })
 })

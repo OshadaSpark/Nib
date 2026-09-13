@@ -146,6 +146,7 @@ Files are known by their absolute path, their location. The Rust side reads and 
 | Shortcut                 | Action                            |
 | ------------------------ | --------------------------------- |
 | ⌘N                       | New (menu bar)                    |
+| ⌘W, ⌘Q                   | Close, Quit (ask about unsaved)   |
 | ⌘/Ctrl+O                 | Open                              |
 | ⌘/Ctrl+Shift+O           | Open folder                       |
 | ⌘/Ctrl+S                 | Save                              |
@@ -157,7 +158,7 @@ Files are known by their absolute path, their location. The Rust side reads and 
 | ⌘/Ctrl+I                 | Italic (Markdown)                 |
 | ⌘/Ctrl+K                 | Link (Markdown)                   |
 
-In Markdown files, ⌘/Ctrl+click on a link opens it: web and email links in a new tab, and relative
+In Markdown files, ⌘/Ctrl+click on a link opens it: web and email links in their apps, and relative
 links (such as `[plan](notes/plan.md)`) in the editor, when the file is in an open folder. Clicking a
 checkbox toggles its task, and Alt+Enter does either at the cursor. Images show from data URLs and
 from relative paths in an open folder, never from the web: loading them would tell the server when
@@ -191,13 +192,38 @@ in the system's WebKit (WKWebView):
   close, minimise and zoom buttons (`--window-controls` in `app.css`) and drags the window
   (`data-tauri-drag-region="deep"`).
 - `capabilities/default.json` lists what the page may ask of Tauri.
-- `src/lib.rs` starts the app. The release profile in `Cargo.toml` optimises for size.
+- `src/lib.rs` starts the app, with its plugins: the system's panels (dialog), opening links
+  (opener), the clipboard, and the window's size and position, kept between launches (window
+  state). The release profile in `Cargo.toml` optimises for size.
+- `src/files.rs` reads and writes files (see Files), `src/opened.rs` keeps the files opened from the
+  system until the page asks for them, and `src/window.rs` shows the dot for unsaved changes in the
+  window's close button.
 - `icons/` holds the app's icons, generated from `icon.svg` with `pnpm tauri icon src-tauri/icons/icon.svg`
   (then delete the icons for other platforms, keeping `icon.icns` and `icon.png`).
 
-The menu bar is built by the frontend ([`src/lib/desktop/menu.ts`](src/lib/desktop/menu.ts)), so
-its File menu runs the same actions as the header's. The Edit menu uses the system's commands, which
-WKWebView needs for cut, copy, paste and select all.
+The frontend's side of the app is in [`src/lib/desktop/`](src/lib/desktop), each part doing
+nothing outside the app (as in tests):
+
+- `menu.ts` builds the menu bar, so its File menu runs the same actions as the header's. The Edit
+  menu uses the system's commands, which WKWebView needs for cut, copy, paste and select all. Quit is
+  the app's own: it closes the window, which asks first about unsaved changes.
+- `window.ts` sets the window's title, the dot for unsaved changes and the theme (for the window's
+  buttons and the system's panels), tells when it goes full screen (where the room kept for its
+  buttons goes too), and guards closing it: the close button, ⌘W and Quit ask before unsaved
+  changes are lost. Quitting from the Dock doesn't: Tauri can't hold that up.
+- `openedFiles.ts` opens files opened from the system: `.md`, `.markdown` and `.txt` files are
+  associated with the app (`bundle.fileAssociations`), so double-clicking one in Finder, Open With,
+  or dropping one on the app's Dock icon opens it, with its location. Without any on launch, the app
+  opens again the folder and file that were open last time
+  ([`src/lib/files/session.ts`](src/lib/files/session.ts)).
+
+Files dropped on the window go through WebKit, as the window's own file drops (`dragDropEnabled`)
+would take every drag, so that text could no longer be dragged within the editor or from other
+apps. WebKit gives no path, so a dropped file opens as a copy: saving it asks where.
+
+The header, file tree, status bar and menus aren't selectable text, as in native apps. Links open in
+their apps (the browser, Mail) through the opener plugin, and the toolbar's clipboard commands go
+through the clipboard plugin, as WebKit would ask the user before each paste.
 
 The frontend is built for the WebKit of macOS 26 only (`build.target` in `vite.config.ts`), so modern
 CSS such as `light-dark()` ships as written.

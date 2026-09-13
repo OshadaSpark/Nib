@@ -12,6 +12,7 @@ const commands = (): MenuCommands => ({
   save: vi.fn(),
   saveAs: vi.fn(),
   settings: vi.fn(),
+  quit: vi.fn(),
 })
 
 /** The items of the menu titled `title`, with their texts, or `item` for the system's. */
@@ -51,6 +52,18 @@ describe('menuItems', () => {
     expect(save.accelerator).toBe('CmdOrCtrl+S')
     save.action?.('save')
     expect(run.save).toHaveBeenCalledOnce()
+  })
+
+  it('quits through the app, which asks about unsaved changes', () => {
+    const run = commands()
+    const quit = menu(menuItems(run), 'Nib').find(
+      (item) => 'text' in item && item.text === 'Quit Nib',
+    ) as MenuItemOptions
+
+    quit.action?.('quit')
+
+    expect(quit.accelerator).toBe('CmdOrCtrl+Q')
+    expect(run.quit).toHaveBeenCalledOnce()
   })
 
   it('opens the settings from the app menu', () => {

@@ -116,21 +116,87 @@ describe('Workspace', () => {
     })
   })
 
-  describe('openWith', () => {
-    it('opens the dropped file, after asking to discard unsaved changes', async () => {
+  describe('openLocation', () => {
+    it('opens the file at a location, as from Finder, after asking to discard changes', async () => {
       type(workspace, 'unsaved')
 
-      await workspace.openWith(() => Promise.resolve(opened('notes.md', 'dropped')))
+      await workspace.openLocation('/Docs/notes.md')
 
       expect(confirm).toHaveBeenCalledOnce()
+      expect(workspace.file.content.toString()).toBe('a\nb')
+      expect(workspace.file.location).toBe('/Docs/notes.md')
+    })
+
+    it('reports files that can’t be read', async () => {
+      await workspace.openLocation('/Docs/gone.md')
+
+      expect(workspace.error).toBe('Couldn’t open the file.')
+    })
+  })
+
+  describe('openDropped', () => {
+    it('opens the dropped file, which has no location', async () => {
+      await workspace.openDropped(() => Promise.resolve(opened('notes.md', 'dropped')))
+
       expect(workspace.file.content.toString()).toBe('dropped')
       expect(workspace.file.location).toBeNull()
     })
 
     it('reports files that can’t be read', async () => {
-      await workspace.openWith(() => Promise.reject(new Error('Gone')))
+      await workspace.openDropped(() => Promise.reject(new Error('Gone')))
 
       expect(workspace.error).toBe('Couldn’t open the file.')
+    })
+  })
+
+  describe('restore', () => {
+    it('opens the folder and file that were open last time, revealing the file', async () => {
+      await workspace.restore({ folder: '/Notes', file: '/Notes/journal/today.md' })
+
+      expect(workspace.folder?.location).toBe('/Notes')
+      expect(workspace.file.path).toBe('journal/today.md')
+      const journal = workspace.folder?.root.children?.[0]
+      expect(journal?.kind === 'directory' && journal.expanded).toBe(true)
+    })
+
+    it('leaves out quietly what is gone', async () => {
+      await workspace.restore({ folder: '/Gone', file: '/Gone/notes.md' })
+
+      expect(workspace.folder).toBeNull()
+      expect(workspace.file.name).toBe('Untitled.md')
+      expect(workspace.error).toBeNull()
+    })
+  })
+
+  describe('confirmClose', () => {
+    it('lets the window close without asking when nothing is unsaved', async () => {
+      expect(await workspace.confirmClose()).toBe(true)
+      expect(confirm).not.toHaveBeenCalled()
+    })
+
+    it('asks before unsaved changes are lost', async () => {
+      type(workspace, 'unsaved')
+      confirm.mockResolvedValue(false)
+
+      expect(await workspace.confirmClose()).toBe(false)
+      expect(confirm).toHaveBeenCalledOnce()
+    })
+
+    it('keeps the window open while an action is under way', async () => {
+      disk.picks.save = '/Docs/new.md'
+      let finishSave = (): void => undefined
+      vi.mocked(saveFile).mockReturnValue(
+        new Promise((resolve) => {
+          finishSave = () => {
+            resolve(null)
+          }
+        }),
+      )
+
+      const saving = workspace.save()
+      expect(await workspace.confirmClose()).toBe(false)
+      finishSave()
+      await saving
     })
   })
 

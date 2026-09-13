@@ -4,7 +4,10 @@ import { localFiles, type LocalFiles } from '$lib/editor/markdown/links'
 import { Text, type Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { fireEvent, render, screen } from '@testing-library/svelte'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@tauri-apps/plugin-opener')
 
 const renderEditor = (doc: string, fileName = 'notes.md', extensions: Extension = []) => {
   render(Editor, { doc: Text.of(doc.split('\n')), language: languageFor(fileName), extensions })
@@ -30,6 +33,7 @@ const getView = (textbox: HTMLElement): EditorView => {
 
 describe('live preview', () => {
   afterEach(() => {
+    vi.resetAllMocks()
     vi.restoreAllMocks()
   })
 
@@ -54,31 +58,23 @@ describe('live preview', () => {
     expect(textbox).toHaveTextContent('Some **bold** text')
   })
 
-  it('opens a link in a new tab on ⌘/Ctrl+click', async () => {
-    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+  it('opens a link in its app on ⌘/Ctrl+click', async () => {
+    const open = vi.mocked(openUrl).mockResolvedValue()
     renderEditor('A [link](https://example.com)')
 
     await fireEvent.mouseDown(screen.getByText('link'), { button: 0, ctrlKey: true })
 
-    expect(open).toHaveBeenCalledExactlyOnceWith(
-      'https://example.com',
-      '_blank',
-      'noopener,noreferrer',
-    )
+    expect(open).toHaveBeenCalledExactlyOnceWith('https://example.com')
   })
 
   it('opens the link at the cursor on Alt+Enter', async () => {
-    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const open = vi.mocked(openUrl).mockResolvedValue()
     const textbox = renderEditor('A <https://example.com>')
     getView(textbox).dispatch({ selection: { anchor: 23 } })
 
     await fireEvent.keyDown(textbox, { key: 'Enter', altKey: true })
 
-    expect(open).toHaveBeenCalledExactlyOnceWith(
-      'https://example.com',
-      '_blank',
-      'noopener,noreferrer',
-    )
+    expect(open).toHaveBeenCalledExactlyOnceWith('https://example.com')
   })
 
   it.each([
@@ -86,7 +82,7 @@ describe('live preview', () => {
     ['a relative link', { button: 0, metaKey: true }, '[link](other.md)'],
     ['a script link', { button: 0, metaKey: true }, '[link](javascript:alert(1))'],
   ])('does not open a link on %s', async (_, init, doc) => {
-    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const open = vi.mocked(openUrl).mockResolvedValue()
     renderEditor(`A ${doc}`)
 
     await fireEvent.mouseDown(screen.getByText('link'), init)
@@ -190,12 +186,12 @@ describe('live preview', () => {
     })
 
     it('opens a link in a cell on ⌘/Ctrl+click', async () => {
-      const open = vi.spyOn(window, 'open').mockReturnValue(null)
+      const open = vi.mocked(openUrl).mockResolvedValue()
       renderEditor(`Intro\n${table}`)
 
       await fireEvent.mouseDown(screen.getByText('cake'), { metaKey: true })
 
-      expect(open).toHaveBeenCalledExactlyOnceWith('https://a.com', '_blank', 'noopener,noreferrer')
+      expect(open).toHaveBeenCalledExactlyOnceWith('https://a.com')
     })
   })
 })

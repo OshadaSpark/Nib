@@ -1,13 +1,14 @@
+import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import type { Command } from '@codemirror/view'
 
-/**
- * Copies the selected text to the clipboard. The browser allows writing to it from a click, so a
- * failure is not expected, and there is nothing to do about one.
- */
+// The toolbar's clipboard commands, through the app rather than WebKit, which would ask the user
+// before each paste. (Keyboard shortcuts go through the Edit menu instead.)
+
+/** Copies the selected text to the clipboard. A failure isn't expected, nor can be helped. */
 export const copy: Command = (view) => {
   const { from, to } = view.state.selection.main
   if (from === to) return false
-  navigator.clipboard.writeText(view.state.sliceDoc(from, to)).catch(() => undefined)
+  writeText(view.state.sliceDoc(from, to)).catch(console.error)
   return true
 }
 
@@ -18,16 +19,16 @@ export const cut: Command = (view) => {
   return true
 }
 
-/** Replaces the selection with the clipboard's text, once the browser (or the user) allows it. */
+/** Replaces the selection with the clipboard's text. */
 export const paste: Command = (view) => {
-  navigator.clipboard.readText().then(
+  readText().then(
     (text) => {
       view.dispatch(view.state.replaceSelection(text), {
         userEvent: 'input.paste',
         scrollIntoView: true,
       })
     },
-    // Refused, so there is nothing to paste.
+    // No text on the clipboard, so there is nothing to paste.
     () => undefined,
   )
   return true

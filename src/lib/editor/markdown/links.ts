@@ -1,6 +1,7 @@
 import { syntaxTree } from '@codemirror/language'
 import { Facet, type EditorState } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
+import { openUrl } from '@tauri-apps/plugin-opener'
 
 /** Nodes whose `URL` child belongs to them, rather than being a bare URL in the text. */
 const urlOwners = new Set(['Link', 'Image', 'Autolink', 'LinkReference'])
@@ -133,11 +134,11 @@ export const localFiles = Facet.define<LocalFiles, LocalFiles | null>({
 export const isRelative = (url: string): boolean =>
   url !== '' && !/^(?:[a-z][\w+.-]*:|\/\/|#)/i.test(url)
 
-/** Opens web and email links in a new tab, and relative links through `localFiles`. */
+/** Opens web and email links in their apps (the browser, Mail), and relative links through `localFiles`. */
 export const openLink = (state: EditorState, url: string | undefined): boolean => {
   if (!url) return false
   if (/^(?:https?|mailto):/i.test(url)) {
-    window.open(url, '_blank', 'noopener,noreferrer')
+    openUrl(url).catch(console.error)
     return true
   }
   return isRelative(url) && (state.facet(localFiles)?.open(url) ?? false)

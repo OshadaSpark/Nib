@@ -48,6 +48,11 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* In full screen, the window's buttons hide. */
+:root[data-full-screen] {
+  --window-controls: 0.5rem;
+}
+
 /* A theme picked in the preferences, over the system's: every `light-dark()` colour follows it. */
 :root[data-theme='light'] {
   color-scheme: light;
@@ -65,6 +70,14 @@
 
 body {
   margin: 0;
+}
+
+/* The app's chrome, as in native apps: its labels aren't text to select. */
+header,
+aside,
+footer,
+[popover] {
+  user-select: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -149,8 +162,10 @@ button {
 .menu {
   min-inline-size: 13rem;
 
+  /* Not a grid, which WebKit stretches to the height of the window, between the popover's insets. */
   &:popover-open {
-    display: grid;
+    display: flex;
+    flex-direction: column;
   }
 
   & button {

@@ -2,7 +2,17 @@
   import { searchPanelOpen } from '@codemirror/search'
   import type { EditorSelection, Text } from '@codemirror/state'
   import { EditorView } from '@codemirror/view'
+  import { onMount } from 'svelte'
   import { MediaQuery } from 'svelte/reactivity'
+  import { watchOpenedFiles } from '$lib/desktop/openedFiles'
+  import { whileMounted } from '$lib/desktop/whileMounted'
+  import {
+    guardClosing,
+    setDocumentEdited,
+    setWindowTheme,
+    setWindowTitle,
+    watchFullScreen,
+  } from '$lib/desktop/window'
   import ConfirmDialog from '$lib/dialog/ConfirmDialog.svelte'
   import { Confirmation } from '$lib/dialog/confirmation.svelte'
   import Editor from '$lib/editor/Editor.svelte'
@@ -12,6 +22,7 @@
   import DropOverlay from '$lib/files/DropOverlay.svelte'
   import type { OpenedFile } from '$lib/files/fileAccess'
   import FileTree from '$lib/files/FileTree.svelte'
+  import { loadSession, saveSession } from '$lib/files/session'
   import type { TextFile } from '$lib/files/textFile.svelte'
   import { Workspace } from '$lib/files/workspace.svelte'
   import { Preferences } from '$lib/preferences/preferences.svelte'
@@ -33,6 +44,55 @@
   })
 
   const title = $derived(`${workspace.file.dirty ? '• ' : ''}${workspace.file.name} — Nib`)
+
+  // The window around the page, in the app: its title, the dot for unsaved changes in its close
+  // button, and its theme, for its buttons and the system's panels.
+  $effect(() => {
+    setWindowTitle(title).catch(console.error)
+  })
+  $effect(() => {
+    setDocumentEdited(workspace.dirty).catch(console.error)
+  })
+  $effect(() => {
+    setWindowTheme(preferences.theme === 'system' ? null : preferences.theme).catch(console.error)
+  })
+
+  /** Read before the effect below first saves what's open, which is nothing yet. */
+  const lastSession = loadSession()
+  $effect(() => {
+    saveSession({ folder: workspace.folder?.location ?? null, file: workspace.file.location })
+  })
+
+  /**
+   * Opens the files opened from the system (the first, of several), such as from Finder. On launch,
+   * without any, opens again what was open last time.
+   */
+  const openFromSystem = async (): Promise<() => void> => {
+    // A count, as TypeScript would take a flag set in the callback for always false.
+    let opened = 0
+    const stop = await watchOpenedFiles(([first]) => {
+      opened += 1
+      if (first) void workspace.openLocation(first)
+    })
+    if (opened === 0) await workspace.restore(lastSession)
+    return stop
+  }
+
+  onMount(() => {
+    const stops = [
+      // In full screen, the window's buttons hide, and so does the room kept for them.
+      whileMounted(
+        watchFullScreen((fullScreen) => {
+          document.documentElement.toggleAttribute('data-full-screen', fullScreen)
+        }),
+      ),
+      whileMounted(guardClosing(() => workspace.confirmClose())),
+      whileMounted(openFromSystem()),
+    ]
+    return () => {
+      for (const stop of stops) stop()
+    }
+  })
 
   /** The editor's selection, for the status bar. */
   let selection = $state.raw<EditorSelection | null>(null)
@@ -105,8 +165,8 @@
     void workspace.deleteFile(path)
   }
   const isDirty = (path: string): boolean => workspace.opened.get(path)?.dirty ?? false
-  const openWith = (read: () => Promise<OpenedFile>): void => {
-    void workspace.openWith(read)
+  const openDropped = (read: () => Promise<OpenedFile>): void => {
+    void workspace.openDropped(read)
   }
 
   const dismissError = (): void => {
@@ -117,18 +177,13 @@
   const onfocus = (): void => {
     void workspace.checkDisk()
   }
-
-  /** Asks the browser to confirm leaving the page while there are unsaved changes. */
-  const onbeforeunload = (event: BeforeUnloadEvent): void => {
-    if (workspace.dirty) event.preventDefault()
-  }
 </script>
 
 <svelte:head>
   <title>{title}</title>
 </svelte:head>
 
-<svelte:window {onbeforeunload} {onfocus} onpointermove={stopWriting} onpointerdown={stopWriting} />
+<svelte:window {onfocus} onpointermove={stopWriting} onpointerdown={stopWriting} />
 
 <div class="app" class:writing={writing && preferences.fadeWhileWriting}>
   <Header {workspace} {preferences} {filesId} bind:filesShown {view} {searchShown} />
@@ -184,7 +239,7 @@
   {/if}
 </div>
 
-<DropOverlay ondropfile={openWith} />
+<DropOverlay ondropfile={openDropped} />
 <ConfirmDialog {confirmation} />
 
 <style>

@@ -50,6 +50,22 @@
     "targets": ["app", "dmg"],
     "category": "Productivity",
     "shortDescription": "A minimal Markdown and text editor for local files",
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown"],
+        "contentTypes": ["net.daringfireball.markdown"],
+        "name": "Markdown document",
+        "role": "Editor",
+        "rank": "Default"
+      },
+      {
+        "ext": ["txt"],
+        "contentTypes": ["public.plain-text"],
+        "name": "Plain text document",
+        "role": "Editor",
+        "rank": "Alternate"
+      }
+    ],
     "icon": ["icons/icon.icns", "icons/icon.png"],
     "macOS": {
       "minimumSystemVersion": "26.0"
