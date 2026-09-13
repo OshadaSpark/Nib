@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { installFakeDisk, type FakeFiles } from './fakeDisk'
 import { Folder, type DirectoryNode, type TreeNode } from './folder.svelte'
-import { fakeFolder, fakeText } from './testFiles'
 
 const names = (directory: DirectoryNode): string[] =>
   (directory.children ?? []).map((node) => node.name)
@@ -17,21 +17,30 @@ const directoryIn = (directory: DirectoryNode, name: string): DirectoryNode => {
   return node
 }
 
+/** A folder at /Notes holding `files`, by paths relative to it. */
+const notesWith = (files: FakeFiles) => {
+  const disk = installFakeDisk(
+    Object.fromEntries(Object.entries(files).map(([path, text]) => [`/Notes/${path}`, text])),
+  )
+  return { disk, folder: new Folder('/Notes') }
+}
+
 describe('Folder', () => {
   const notes = () =>
-    fakeFolder('Notes', {
+    notesWith({
       'b.md': '',
       'a 10.txt': '',
       'a 9.markdown': '',
       'photo.png': '',
-      '.git': { config: '' },
-      node_modules: { 'x.md': '' },
+      '.git/config': '',
+      'node_modules/x.md': '',
       '.hidden.md': '',
-      journal: { 'today.md': '# Today', archive: { 'old.md': '' } },
+      'journal/today.md': '# Today',
+      'journal/archive/old.md': '',
     })
 
   it('lists directories, then Markdown and text files by name, leaving out others', async () => {
-    const folder = new Folder(notes())
+    const { folder } = notes()
 
     await folder.list()
 
@@ -41,7 +50,7 @@ describe('Folder', () => {
   })
 
   it('lists directories as they are expanded', async () => {
-    const folder = new Folder(notes())
+    const { folder } = notes()
     await folder.list()
     const journal = directoryIn(folder.root, 'journal')
     expect(journal.children).toBeNull()
@@ -56,7 +65,7 @@ describe('Folder', () => {
   })
 
   it('expands the directories down to a file', async () => {
-    const folder = new Folder(notes())
+    const { folder } = notes()
 
     await folder.reveal('journal/archive/old.md')
 
@@ -66,7 +75,7 @@ describe('Folder', () => {
   })
 
   it('stops revealing at a directory that isn’t there', async () => {
-    const folder = new Folder(notes())
+    const { folder } = notes()
 
     await folder.reveal('gone/x.md')
 
@@ -74,14 +83,13 @@ describe('Folder', () => {
   })
 
   it('picks up changes on refresh, keeping expanded directories', async () => {
-    const handle = notes()
-    const folder = new Folder(handle)
+    const { disk, folder } = notes()
     await folder.list()
     const journal = directoryIn(folder.root, 'journal')
     await folder.toggle(journal)
 
-    await (await handle.getDirectoryHandle('journal')).getFileHandle('new.md', { create: true })
-    await handle.removeEntry('b.md')
+    disk.write('/Notes/journal/new.md', '')
+    await folder.remove('b.md')
     await folder.refresh()
 
     expect(directoryIn(folder.root, 'journal')).toBe(journal)
@@ -90,83 +98,61 @@ describe('Folder', () => {
     expect(names(folder.root)).not.toContain('b.md')
   })
 
-  it('finds files by path, listed or not', async () => {
-    const folder = new Folder(notes())
+  it('converts between paths in the folder and on disk', () => {
+    const { folder } = notes()
 
-    expect((await folder.file('journal/archive/old.md'))?.name).toBe('old.md')
-    expect(await folder.file('journal/missing.md')).toBeNull()
-    expect(await folder.file('missing/today.md')).toBeNull()
-    expect(await folder.file('journal')).toBeNull()
-  })
-
-  it('tells where a handle is in the folder', async () => {
-    const handle = notes()
-    const folder = new Folder(handle)
-    const today = await (await handle.getDirectoryHandle('journal')).getFileHandle('today.md')
-
-    expect(await folder.pathOf(today)).toBe('journal/today.md')
-    expect(await folder.pathOf(fakeFolder('Elsewhere', {}))).toBeNull()
+    expect(folder.locationOf('journal/today.md')).toBe('/Notes/journal/today.md')
+    expect(folder.locationOf('')).toBe('/Notes')
+    expect(folder.pathOf('/Notes/journal/today.md')).toBe('journal/today.md')
+    expect(folder.pathOf('/Elsewhere/today.md')).toBeNull()
+    expect(folder.pathOf('/Notes')).toBeNull()
   })
 })
 
 describe('Folder file operations', () => {
   const folderWith = async () => {
-    const handle = fakeFolder('Notes', { 'a.md': 'A', journal: { 'b.md': 'B' } })
-    const folder = new Folder(handle)
-    await folder.list()
-    return { handle, folder }
+    const notes = notesWith({ 'a.md': 'A', 'journal/b.md': 'B' })
+    await notes.folder.list()
+    return notes
   }
 
   it('creates files, listing them', async () => {
-    const { handle, folder } = await folderWith()
+    const { disk, folder } = await folderWith()
 
-    const created = await folder.create('', 'new.md')
+    expect(await folder.create('', 'new.md')).toBeGreaterThan(0)
 
-    expect(created.name).toBe('new.md')
-    expect(fakeText(handle, 'new.md')).toBe('')
+    expect(disk.text('/Notes/new.md')).toBe('')
     expect(names(folder.root)).toContain('new.md')
     await folder.create('journal', 'c.md')
-    expect(fakeText(handle, 'journal/c.md')).toBe('')
+    expect(disk.text('/Notes/journal/c.md')).toBe('')
   })
 
   it('won’t create or rename over an existing file', async () => {
-    const { handle, folder } = await folderWith()
-    await handle.getFileHandle('taken.md', { create: true })
+    const { disk, folder } = await folderWith()
+    disk.write('/Notes/taken.md', '')
 
-    await expect(folder.create('', 'a.md')).rejects.toThrow('a.md already exists')
-    await expect(folder.rename('a.md', 'taken.md')).rejects.toThrow('taken.md already exists')
-    expect(fakeText(handle, 'a.md')).toBe('A')
+    await expect(folder.create('', 'a.md')).rejects.toThrow('/Notes/a.md already exists')
+    await expect(folder.rename('a.md', 'taken.md')).rejects.toThrow(
+      '/Notes/taken.md already exists',
+    )
+    expect(disk.text('/Notes/a.md')).toBe('A')
   })
 
-  it('renames files in place where it can', async () => {
-    const { handle, folder } = await folderWith()
-    const original = await handle.getFileHandle('a.md')
+  it('renames files within their directory', async () => {
+    const { disk, folder } = await folderWith()
 
-    const renamed = await folder.rename('a.md', 'A.md')
+    await folder.rename('journal/b.md', 'c.md')
 
-    expect(renamed).toBe(original)
-    expect(fakeText(handle, 'A.md')).toBe('A')
-    expect(names(folder.root)).toEqual(['journal', 'A.md'])
+    expect(disk.text('/Notes/journal/c.md')).toBe('B')
+    expect(disk.text('/Notes/journal/b.md')).toBeUndefined()
   })
 
-  it('renames by copying where files can’t move', async () => {
-    const { handle, folder } = await folderWith()
-    const journal = await handle.getDirectoryHandle('journal')
-    Object.defineProperty(await journal.getFileHandle('b.md'), 'move', { value: undefined })
-
-    const renamed = await folder.rename('journal/b.md', 'c.md')
-
-    expect(renamed.name).toBe('c.md')
-    expect(fakeText(handle, 'journal/c.md')).toBe('B')
-    expect(fakeText(handle, 'journal/b.md')).toBeUndefined()
-  })
-
-  it('deletes files', async () => {
-    const { handle, folder } = await folderWith()
+  it('moves files to the Trash', async () => {
+    const { disk, folder } = await folderWith()
 
     await folder.remove('a.md')
 
-    expect(fakeText(handle, 'a.md')).toBeUndefined()
+    expect(disk.text('/Notes/a.md')).toBeUndefined()
     expect(names(folder.root)).toEqual(['journal'])
   })
 })
@@ -179,32 +165,20 @@ describe('Folder images', () => {
   it('makes a URL for each image once, until it changes or the folder closes', async () => {
     const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:cat')
     const revoke = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue()
-    const handle = fakeFolder('Notes', { img: { 'cat.png': 'meow' } })
-    const folder = new Folder(handle)
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { disk, folder } = notesWith({ 'img/cat.png': 'meow' })
 
     expect(await folder.imageURL('img/cat.png')).toBe('blob:cat')
     expect(await folder.imageURL('img/cat.png')).toBe('blob:cat')
     expect(create).toHaveBeenCalledOnce()
     expect(await folder.imageURL('img/dog.png')).toBeNull()
 
-    const cat = await (await handle.getDirectoryHandle('img')).getFileHandle('cat.png')
-    const writable = await cat.createWritable()
-    await writable.write('purr')
-    await writable.close()
+    disk.write('/Notes/img/cat.png', 'purr')
     await folder.imageURL('img/cat.png')
     expect(create).toHaveBeenCalledTimes(2)
     expect(revoke).toHaveBeenCalledOnce()
 
     folder.close()
     expect(revoke).toHaveBeenCalledTimes(2)
-  })
-
-  it('has no URL for images it can’t read', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const handle = fakeFolder('Notes', { 'cat.png': 'meow' })
-    const cat = await handle.getFileHandle('cat.png')
-    vi.spyOn(cat, 'getFile').mockRejectedValue(new DOMException('Busy', 'NotReadableError'))
-
-    expect(await new Folder(handle).imageURL('cat.png')).toBeNull()
   })
 })

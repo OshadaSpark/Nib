@@ -21,8 +21,8 @@ export const decodeText = (bytes: ArrayBuffer): string | null => {
 /** A text file open in the editor, tracking its content against the last saved version. */
 export class TextFile {
   name: string = $state('')
-  /** Handle for saving back to the file, if it has one. */
-  handle: FileSystemFileHandle | null = $state.raw(null)
+  /** Where the file is on disk (its absolute path), or `null` until it's saved. */
+  location: string | null = $state(null)
   /** The current content, kept in sync with the editor. */
   content: Text = $state.raw(Text.empty)
   /** The content last read from disk: when the file is reloaded, the editor takes it over. */
@@ -44,11 +44,11 @@ export class TextFile {
   constructor(
     name: string,
     text = '',
-    handle: FileSystemFileHandle | null = null,
+    location: string | null = null,
     modified: number | null = null,
   ) {
     this.name = name
-    this.handle = handle
+    this.location = location
     this.modified = modified
     this.#load(text)
   }
@@ -87,16 +87,11 @@ export class TextFile {
     return this.#byteOrderMark + content.sliceString(0, content.length, this.#lineBreak)
   }
 
-  /** Records that `content` was saved, possibly under a new name and handle. */
-  markSaved(
-    content: Text,
-    name: string,
-    handle: FileSystemFileHandle | null,
-    modified: number | null,
-  ): void {
+  /** Records that `content` was saved, possibly under a new name and location. */
+  markSaved(content: Text, name: string, location: string, modified: number): void {
     this.#saved = content
     this.name = name
-    this.handle = handle
+    this.location = location
     this.modified = modified
   }
 }

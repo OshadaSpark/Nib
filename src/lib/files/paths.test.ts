@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isValidName, join, nameOf, parentOf, resolvePath } from './paths'
+import { isValidName, join, nameOf, parentOf, relativePath, resolvePath } from './paths'
 
 describe('resolvePath', () => {
   it.each([
@@ -51,5 +51,23 @@ describe('isValidName', () => {
 
   it.each(['', '  ', '.', '..', 'a/b.md', 'a\\b.md'])('refuses %j', (name) => {
     expect(isValidName(name)).toBe(false)
+  })
+})
+
+describe('relativePath', () => {
+  it.each([
+    ['/Notes', '/Notes/a.md', 'a.md'],
+    ['/Notes/', '/Notes/journal/a.md', 'journal/a.md'],
+    ['/', '/a.md', 'a.md'],
+  ])('finds %j + %j at %j', (root, location, expected) => {
+    expect(relativePath(root, location)).toBe(expected)
+  })
+
+  it.each([
+    ['/Notes', '/Notes'],
+    ['/Notes', '/Notebook/a.md'],
+    ['/Notes', '/Elsewhere/a.md'],
+  ])('finds %j + %j outside the folder', (root, location) => {
+    expect(relativePath(root, location)).toBeNull()
   })
 })

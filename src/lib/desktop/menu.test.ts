@@ -53,11 +53,6 @@ describe('menuItems', () => {
     expect(run.save).toHaveBeenCalledOnce()
   })
 
-  it('leaves out Open Folder where folders can’t be opened', () => {
-    const file = menu(menuItems({ ...commands(), openFolder: undefined }), 'File')
-    expect(texts(file)).not.toContain('Open Folder…')
-  })
-
   it('opens the settings from the app menu', () => {
     const run = commands()
     const settings = menu(menuItems(run), 'Nib').find(

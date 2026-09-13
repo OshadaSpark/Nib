@@ -1,13 +1,7 @@
 import type { Confirm } from '$lib/dialog/confirmation.svelte'
 import { SvelteMap } from 'svelte/reactivity'
-import {
-  lastModified,
-  openFile,
-  openFolder,
-  readFile,
-  saveFile,
-  type OpenedFile,
-} from './fileAccess'
+import { openFile, openFolder, readFile, saveFile, type OpenedFile } from './fileAccess'
+import { failedWith, modifiedTime } from './fileSystem'
 import { withExtension } from './fileTypes'
 import { Folder } from './folder.svelte'
 import { isValidName, join, nameOf, parentOf, resolvePath } from './paths'
@@ -21,7 +15,7 @@ const untitledName = 'Untitled.md'
  */
 export class Workspace {
   file: TextFile = $state.raw(new TextFile(untitledName))
-  /** The open folder, if any (Chromium only). */
+  /** The open folder, if any. */
   folder: Folder | null = $state.raw(null)
   /** Files from the folder that have been opened, by path, which keep their edits while hidden. */
   readonly opened = new SvelteMap<string, TextFile>()
@@ -50,9 +44,9 @@ export class Workspace {
     })
   }
 
-  /** Asks the user for a file to open. */
+  /** Asks the user for a file to open, starting in the open folder. */
   async open(): Promise<void> {
-    await this.#open(openFile)
+    await this.#open(() => openFile(this.folder?.location))
   }
 
   /** Opens the file `read` reads, as one dropped on the page or opened from the system. */
@@ -64,7 +58,7 @@ export class Workspace {
     await this.#run('Couldn’t open the file.', async () => {
       const opened = await read()
       if (!opened) return
-      const path = opened.handle && (await this.folder?.pathOf(opened.handle))
+      const path = opened.location && this.folder?.pathOf(opened.location)
       const existing = path && this.opened.get(path)
       if (existing) {
         if (await this.#confirmDiscard()) this.file = existing
@@ -78,9 +72,9 @@ export class Workspace {
   /** Asks the user for a folder, and lists its files. */
   async openFolder(): Promise<void> {
     await this.#run('Couldn’t open the folder.', async () => {
-      const handle = await openFolder()
-      if (!handle || !(await this.#confirmDiscardAll())) return
-      const folder = new Folder(handle)
+      const location = await openFolder()
+      if (!location || !(await this.#confirmDiscardAll())) return
+      const folder = new Folder(location)
       await folder.list()
       this.folder?.close()
       this.folder = folder
@@ -97,12 +91,15 @@ export class Workspace {
       if (existing) {
         this.file = existing
       } else {
-        const handle = await folder.file(path)
-        if (!handle) {
+        const opened = await readFile(folder.locationOf(path)).catch((error: unknown) => {
+          if (failedWith(error, 'notFound')) return null
+          throw error
+        })
+        if (!opened) {
           this.error = `There’s no ${path} in the folder.`
           return
         }
-        const file = this.#textFile(await readFile(handle))
+        const file = this.#textFile(opened)
         if (!file) return
         this.#show(file, path)
       }
@@ -133,7 +130,7 @@ export class Workspace {
 
   /** Saves to the open file, or asks where to save if it has not been saved before. */
   async save(): Promise<void> {
-    await this.#save(this.file.handle)
+    await this.#save(this.file.location)
   }
 
   /** Asks where to save, even if the file has been saved before. */
@@ -141,7 +138,7 @@ export class Workspace {
     await this.#save(null)
   }
 
-  async #save(handle: FileSystemFileHandle | null): Promise<void> {
+  async #save(location: string | null): Promise<void> {
     const { file, folder } = this
     await this.#run(`Couldn’t save ${file.name}.`, async () => {
       // Edits made while saving are not part of the save, so they leave the file dirty.
@@ -149,15 +146,15 @@ export class Workspace {
       const saved = await saveFile(
         file.serialize(content),
         file.name,
-        handle,
-        folder?.root.handle ?? null,
+        location,
+        folder?.location ?? null,
       )
       if (!saved) return
-      file.markSaved(content, saved.name, saved.handle, saved.modified)
+      file.markSaved(content, saved.name, saved.location, saved.modified)
       // Saving somewhere new may have added the file to the folder, or taken it out.
-      const path = saved.handle && (await folder?.pathOf(saved.handle))
-      if (folder && (path ?? null) !== file.path) {
-        this.#track(file, path ?? null)
+      const path = folder?.pathOf(saved.location) ?? null
+      if (folder && path !== file.path) {
+        this.#track(file, path)
         await folder.refresh()
       }
     })
@@ -168,9 +165,9 @@ export class Workspace {
     await this.#inFolder(`Couldn’t create ${name}.`, async (folder) => {
       if (!isValidName(name) || !(await this.#confirmDiscard())) return
       const fileName = withExtension(name)
-      const handle = await folder.create(directory, fileName)
-      const file = new TextFile(fileName, '', handle, await lastModified(handle))
-      this.#show(file, join(directory, fileName))
+      const path = join(directory, fileName)
+      const modified = await folder.create(directory, fileName)
+      this.#show(new TextFile(fileName, '', folder.locationOf(path), modified), path)
     })
   }
 
@@ -179,13 +176,14 @@ export class Workspace {
     await this.#inFolder(`Couldn’t rename ${path}.`, async (folder) => {
       if (!isValidName(name)) return
       const fileName = withExtension(name)
-      const handle = await folder.rename(path, fileName)
+      const modified = await folder.rename(path, fileName)
       const file = this.opened.get(path)
       if (!file) return
+      const renamed = join(parentOf(path), fileName)
       file.name = fileName
-      file.handle = handle
-      file.modified = await lastModified(handle)
-      this.#track(file, join(parentOf(path), fileName))
+      file.location = folder.locationOf(renamed)
+      file.modified = modified
+      this.#track(file, renamed)
     })
   }
 
@@ -194,7 +192,7 @@ export class Workspace {
     await this.#inFolder(`Couldn’t delete ${path}.`, async (folder) => {
       const confirmed = await this.#confirm({
         title: `Delete ${nameOf(path)}?`,
-        message: 'It will be deleted from the folder, which can’t be undone.',
+        message: 'It will be moved to the Trash.',
         confirm: 'Delete',
         cancel: 'Cancel',
       })
@@ -219,9 +217,9 @@ export class Workspace {
     const actions = this.#actions
     try {
       await folder?.refresh()
-      const { handle, modified } = file
-      if (!handle || (await lastModified(handle)) === modified) return
-      const disk = await readFile(handle)
+      const { location, modified } = file
+      if (!location || (await modifiedTime(location)) === modified) return
+      const disk = await readFile(location)
       // Leaves it to the next check if the user started an action meanwhile, such as saving.
       if (this.#actions !== actions || file.modified !== modified) return
       const text = decodeText(disk.bytes)
@@ -244,9 +242,9 @@ export class Workspace {
   }
 
   /** The text file read as `opened`, or `null` if it isn't text, which is reported. */
-  #textFile({ name, bytes, handle, modified }: OpenedFile): TextFile | null {
+  #textFile({ name, bytes, location, modified }: OpenedFile): TextFile | null {
     const text = decodeText(bytes)
-    if (text !== null) return new TextFile(name, text, handle, modified)
+    if (text !== null) return new TextFile(name, text, location, modified)
     this.error = `${name} isn’t a UTF-8 text file.`
     return null
   }

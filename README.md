@@ -107,44 +107,47 @@ than one copy of `@codemirror/state` is installed (`pnpm why @codemirror/state` 
 
 ## Files
 
-Files are opened and saved in [`src/lib/files/`](src/lib/files):
+Files are known by their absolute path, their location. The Rust side reads and writes them
+([`src-tauri/src/files.rs`](src-tauri/src/files.rs)), and the frontend handles them in
+[`src/lib/files/`](src/lib/files):
 
-- `fileTypes.ts` tells Markdown and plain-text files apart by extension, and `paths.ts` handles
-  paths within a folder (joining them, and resolving relative links).
-- `fileAccess.ts` uses the
-  [File System Access API](https://developer.mozilla.org/docs/Web/API/File_System_API) where it is
-  available (Chromium-based browsers), so saving writes back to the opened file. Other browsers open
-  files with a file input and save them as downloads, and so does the app for now, as WebKit has no
-  such API, until file access moves to Rust.
-- `DropOverlay.svelte` opens files dropped anywhere on the page. In Chromium, the dropped file's
-  handle is kept, so saving writes back to it.
+- `files.rs` has the app's file commands: reading a file's bytes and its modified time, writing
+  text through a temporary file that then replaces the file (so a failed write leaves it as it was,
+  keeping its permissions, and symbolic links as links), listing a directory, creating a file under
+  a free name, renaming one (case-only renames included) and moving one to the Trash. They take any
+  path, as the page only runs the app's own code.
+- `fileSystem.ts` calls those commands, turning their failures into a `FileSystemError` with its
+  kind (not found, name taken, other). `fileAccess.ts` adds the system's open, save and folder
+  panels, through `tauri-plugin-dialog`.
+- `fileTypes.ts` tells Markdown and plain-text files apart by extension (and gives images their
+  media type), and `paths.ts` handles paths, absolute or within a folder (joining them, and
+  resolving relative links).
+- `DropOverlay.svelte` opens files dropped anywhere on the window. The page gets no path for them, so
+  saving one asks where to save it.
 - `textFile.svelte.ts` holds the open file. It tracks unsaved changes against the last saved content
   and restores the file's line breaks (LF or CRLF) on save, as CodeMirror normalises them to LF, and
   its UTF-8 byte-order mark, if it had one. Files that aren't valid UTF-8 text are refused rather
   than opened with replacement characters, which saving would write back.
-- `workspace.svelte.ts` implements New, Open, Save and Save as. It reports failures in the header, and
-  asks before discarding unsaved changes, in the dialog from
+- `workspace.svelte.ts` implements New, Open, Open folder, Save and Save as. It reports failures in
+  the header, and asks before discarding unsaved changes, in the dialog from
   [`src/lib/dialog/`](src/lib/dialog).
-- `folder.svelte.ts` models a folder opened with Open folder (Chromium only, as other browsers can't
-  write to one): a tree of its Markdown and text files, leaving out dot files and `node_modules`,
-  listed lazily as directories expand. `FileTree.svelte` shows it (its lists share state and actions
-  through a context, `fileTree.ts`) beside the editor, or over it on
-  narrow screens. Switching files keeps each file's unsaved changes, undo history, cursor and scroll
+- `folder.svelte.ts` models an open folder: a tree of its Markdown and text files, leaving out dot
+  files and `node_modules`, listed lazily as directories expand. `FileTree.svelte` shows it (its
+  lists share state and actions through a context, `fileTree.ts`) beside the editor, or over it in a
+  narrow window. Switching files keeps each file's unsaved changes, undo history, cursor and scroll
   position; a dot in the tree marks the files with unsaved changes. The tree also creates files
   (named in place, and given `.md` unless they end in `.md`, `.markdown` or `.txt`), renames them,
-  keeping unsaved changes, and deletes them after asking. Renaming uses `move()` where the browser
-  allows it for files on disk, and otherwise copies the file under its new name and deletes the
-  original.
+  keeping unsaved changes, and moves them to the Trash after asking.
 - When the window regains focus, the workspace lists the folder again and checks whether the open
-  file changed on disk (with the File System Access API). It reloads a file without unsaved changes, and asks first otherwise.
-  The editor takes over the new content without remounting (`difference.ts`), so the cursor and
-  undo history stay.
+  file changed on disk. It reloads a file without unsaved changes, and asks first otherwise. The
+  editor takes over the new content without remounting (`difference.ts`), so the cursor and undo
+  history stay.
 
 | Shortcut                 | Action                            |
 | ------------------------ | --------------------------------- |
 | ⌘N                       | New (menu bar)                    |
 | ⌘/Ctrl+O                 | Open                              |
-| ⇧⌘O                      | Open folder (menu bar)            |
+| ⌘/Ctrl+Shift+O           | Open folder                       |
 | ⌘/Ctrl+S                 | Save                              |
 | ⌘/Ctrl+Shift+S           | Save as                           |
 | ⌘/Ctrl+F                 | Find and replace                  |
@@ -229,6 +232,10 @@ modules only, as compiled Svelte templates contain synthetic branches.
 E2E tests in `e2e/` run with [Playwright](https://playwright.dev) against the production build in
 Chromium, Firefox and WebKit. The app itself can't be automated, as `tauri-driver` doesn't support
 macOS: native parts, such as the menu bar and the pickers, are checked by hand.
+
+Unit and E2E tests share a disk in memory, [`src/lib/files/fakeDisk.ts`](src/lib/files/fakeDisk.ts),
+which answers the app's calls to Tauri (the file commands and the pickers) the way the Rust side
+does, so the frontend's own code runs down to those calls.
 
 ## Git hooks
 

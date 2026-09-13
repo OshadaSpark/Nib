@@ -112,7 +112,8 @@
     align-items: center;
     gap: 0.5rem;
     block-size: var(--bar-height);
-    padding-inline: var(--window-controls) 0.5rem;
+    /* The name starts where the header's file name does, beside the window's controls. */
+    padding-inline: calc(var(--window-controls) + 0.375rem) 0.5rem;
     background-color: var(--color-chrome);
   }
 

@@ -5,8 +5,7 @@ import { Menu, type PredefinedMenuItemOptions, type SubmenuOptions } from '@taur
 export interface MenuCommands {
   newFile: () => void
   open: () => void
-  /** Left out of the menu where folders can't be opened. */
-  openFolder?: (() => void) | undefined
+  openFolder: () => void
   save: () => void
   saveAs: () => void
   settings: () => void
@@ -41,9 +40,7 @@ export const menuItems = (commands: MenuCommands): SubmenuOptions[] => [
     items: [
       { text: 'New', accelerator: 'CmdOrCtrl+N', action: commands.newFile },
       { text: 'Open…', accelerator: 'CmdOrCtrl+O', action: commands.open },
-      ...(commands.openFolder
-        ? [{ text: 'Open Folder…', accelerator: 'CmdOrCtrl+Shift+O', action: commands.openFolder }]
-        : []),
+      { text: 'Open Folder…', accelerator: 'CmdOrCtrl+Shift+O', action: commands.openFolder },
       separator,
       { text: 'Save', accelerator: 'CmdOrCtrl+S', action: commands.save },
       { text: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', action: commands.saveAs },

@@ -139,36 +139,44 @@ src/
                               model types
     testState.ts              markdownState(input) for tests; `‸` marks the cursor
   lib/files/
-    fileAccess.ts             openFile/readFile/lastModified/droppedFile/saveFile: File System
-                              Access API, falling back to a file input and downloads. Returns bytes
-    file-system-access.d.ts   Picker and getAsFileSystemHandle types, optional so callers must
-                              feature-detect
-    textFile.svelte.ts        TextFile: name, handle, content, loaded, dirty, modified; reload,
+    fileSystem.ts             The Rust file commands by absolute path: readBytes (modified time
+                              first), modifiedTime, writeText, listDirectory, createFile,
+                              renameFile, trashFile; FileSystemError (kind: notFound,
+                              alreadyExists, other) and failedWith(error, kind)
+    fileAccess.ts             openFile(folder?)/openFolder/saveFile through the dialog plugin's
+                              panels, readFile(location), droppedFile (HTML drops, no location)
+    textFile.svelte.ts        TextFile: name, location (absolute path, null until saved), path (in
+                              the folder), content, loaded, dirty, modified; reload,
                               line-break and BOM round-trip. decodeText (strict UTF-8, keeps BOM)
     workspace.svelte.ts       Workspace(confirm): the open file and folder, opened files by path
-                              (SvelteMap, keeping edits), newFile/open/openDropped/openFolder/
+                              (SvelteMap, keeping edits), newFile/open/openWith/openFolder/
                               openPath/save/saveAs/createFile/renameFile/deleteFile/openLink/
                               imageURL/checkDisk, error state, busy guard
-    folder.svelte.ts          Folder: lazily listed tree (DirectoryNode/FileNode), refresh, reveal,
-                              file(path), pathOf, create/rename/remove, imageURL
-    paths.ts                  Folder paths: join, nameOf, parentOf, isValidName, resolvePath
+    folder.svelte.ts          Folder(location): lazily listed tree (DirectoryNode/FileNode),
+                              refresh, reveal, locationOf/pathOf, create/rename/remove (Trash),
+                              imageURL (typed blobs)
+    paths.ts                  join, nameOf, parentOf, relativePath, isValidName, resolvePath
     fileTypes.ts              Markdown and text extensions: isMarkdownName, isEditableName,
-                              withExtension (the only place the extensions are listed)
+                              withExtension; imageTypeOf (the only place extensions are listed)
     FileTree.svelte           The folder's tree: heading with New file, create/rename state, which
                               it shares with its lists through the fileTree.ts context
     fileTree.ts               FileTree context: tree state and actions (createContext)
     FileTreeList.svelte       One directory's entries, recursive; rows with Rename and Delete
     NameField.svelte          Inline name input: Enter submits, Escape cancels, blur submits
-    objectURLs.ts             Object URLs per key, remade when the file changes
-    writeFile.ts              Atomic write through createWritable (abort on failure)
+    objectURLs.ts             Object URLs per key and modified time (get/set), revoked together
     DropOverlay.svelte        Window-level drag and drop of files, with an overlay while dragging
-    testFiles.ts              handle(name), opened(name, text, …), fakeFolder(name, tree) (in-memory
-                              directory handles) and fakeText(folder, path), for tests
+    fakeDisk.ts               installFakeDisk(files): for tests, a disk in memory behind the Tauri
+                              calls (file commands, pickers: disk.picks), also window.fakeDisk
+    testFiles.ts              opened(name, text, location?, modified?), for tests
 src-tauri/
   tauri.conf.json             Window (overlay title bar, traffic light position, HTML drag and drop
                               kept), CSP without network access, bundle (app and dmg, macOS 26)
-  capabilities/default.json   The page's permissions: core defaults, dragging and zooming the window
-  src/lib.rs, src/main.rs     Starts the app
+  capabilities/default.json   The page's permissions: core defaults, dragging and zooming the
+                              window, the open and save panels
+  src/files.rs                The file commands (atomic writes through tempfile, keeping
+                              permissions and symbolic links; rename refusing taken names unless
+                              the same file; Trash), with ErrorKind for the frontend; cargo tests
+  src/lib.rs, src/main.rs     Starts the app, with the dialog plugin and the file commands
   Cargo.toml                  Clippy pedantic, unsafe forbidden, release profile for size
   icons/                      icon.svg (on the macOS grid) and the icon.icns/icon.png made from it
 ```
@@ -202,9 +210,6 @@ the editor applies as a diff. The editor owns the document; it reports each chan
   example the full `.cm-selectionBackground` chain).
 - **Extension identity:** Compartment checks compare by identity, so return shared constants from
   functions like `languageFor`, never fresh `[]`.
-- **Picker receivers:** `window.showOpenFilePicker` and `window.showSaveFilePicker` throw "Illegal
-  invocation" if called unbound. Use `window.showOpenFilePicker?.bind(window)`, not destructuring.
-  Lint does not catch this, because they are typed as function properties.
 - **Live preview decorations:** view plugins may not replace line breaks, so `hide()` in
   `decorations.ts` skips ranges that span one. Block widgets and multi-line replacements (images,
   tables) must come from a state field (`blockWidgets.ts`). `RangeSet.between` does not visit ranges
@@ -224,10 +229,6 @@ the editor applies as a diff. The editor owns the document; it reports each chan
 - **Svelte and CodeMirror:** create the view untracked (`untrack`) inside the attachment, so prop
   changes don't recreate it. `$effect` inside the attachment reacts to later prop changes.
   CodeMirror `Text` and `EditorView` are class instances: store them with `$state.raw`.
-- **File handles in IndexedDB crash off the record:** Chromium's renderer crashes when it reads a
-  stored `FileSystemHandle` back from IndexedDB in an off-the-record profile, which Playwright's
-  default contexts are (a persistent context works). Possibly Incognito too: check by hand before
-  storing handles.
 - **Stale E2E builds:** Playwright reuses a server already on port 4173 and then skips `pnpm build`.
   Stop any preview server you started before running `pnpm test:e2e`.
 - **`<dialog>` in jsdom:** jsdom lacks `showModal`/`close`; `vitest.setup.ts` polyfills them. Svelte
@@ -257,9 +258,14 @@ the editor applies as a diff. The editor owns the document; it reports each chan
   not hold `#busy` while it reads, or it drops the user's actions (it counts started actions and
   gives way instead). TypeScript narrows private fields across `await`, so recheck state through a
   counter, not `this.#busy`.
-- **Renaming files on disk:** `FileSystemFileHandle.move()` is behind a flag in Chrome for files
-  outside the origin private file system, so `Folder.rename` falls back to copy and delete, refusing
-  when the copy is the original (case-insensitive file systems).
+- **Tauri command arguments** are owned (`PathBuf`, `String`), which Clippy's pedantic
+  `needless_pass_by_value` flags: `files.rs` expects it with a reason. Commands run with
+  `#[tauri::command(async)]`, off the main thread that draws the window.
+- **Blobs for images need their type:** Firefox shows no image from an untyped blob, and no browser
+  shows SVG from one (`imageTypeOf`).
+- **Keys reaching the editor after focus moves:** a field that hands focus to the editor on Enter
+  must `preventDefault()` the keydown (as `NameField`), or the key's input follows focus into the
+  editor once a fast action has mounted it.
 - **Vite dev server after new imports** (such as `svelte/reactivity`) can serve outdated pre-bundled
   dependencies (504 "Outdated Optimize Dep"): restart it.
 - **Icons:** `pnpm tauri icon src-tauri/icons/icon.svg` makes every platform's icons; keep only
@@ -280,14 +286,17 @@ the editor applies as a diff. The editor owns the document; it reports each chan
   keeps `'unsafe-inline'` working for styles only. `devCsp` also allows Vite's HMR websocket.
 - **`document.title` doesn't reach the window title** in Tauri (seen in the Window menu and
   Mission Control): set it through the window API.
-- **Menu bar shortcuts:** the File menu's accelerators and `Header`'s keydown handler cover the same
-  keys (⌘O, ⌘S, ⇧⌘S, ⌘,); either path runs the same action, and the busy guard stops overlaps. ⌘N
-  and ⇧⌘O are the menu bar's only (browsers keep ⌘N for a new window).
+- **Menu bar shortcuts:** the page gets keys before the menu bar. `Header`'s keydown handler takes
+  ⌘O, ⇧⌘O, ⌘S, ⇧⌘S and ⌘, (preventing them, so the menu items don't run too); the menu bar's
+  accelerators then only label them. ⌘N is the menu bar's own (browsers keep it for a new window).
+  A key the handler mistakes for another (⇧⌘O once ran Open) silently shadows its menu item.
 - **Rust needs `dist/`:** `generate_context!` embeds the frontend's build, so `cargo clippy`,
   `cargo test` and `cargo build` fail without `pnpm build` first (CI builds before them).
-- **Automating the app:** System Events can drive it (`osascript`: keystrokes, menu items) and
-  `screencapture -l <window id>` capture it; mixing fast `keystroke` text with `key code` presses
-  reorders them, so paste longer text through `pbcopy` and ⌘V instead.
+- **Automating the app:** System Events can drive it (`osascript`: keystrokes, menu items, `click
+at {x, y}` in screen points) and `screencapture -l <window id>` capture it; mixing fast
+  `keystroke` text with `key code` presses reorders them, so paste longer text through `pbcopy`
+  and ⌘V instead. The open and save panels run in another process, out of reach of accessibility:
+  drive them with ⇧⌘G, a typed path and Return. Deleting moves files to the real Trash.
 - **CodeMirror only re-measures text for theme changes:** changing fonts or sizes from outside (CSS
   variables on an ancestor) leaves line heights and the cursor stale. Put such values in a theme in
   a compartment (as `appearanceTheme`).
@@ -309,20 +318,25 @@ the editor applies as a diff. The editor owns the document; it reports each chan
   "Document".
 - `vi.mock` automocks keep call history between tests: `vi.resetAllMocks()` and
   `vi.restoreAllMocks()` in `afterEach`.
-- Coverage excludes `main.ts` and `fileAccess.ts` (browser APIs jsdom lacks). Both are covered by
-  E2E instead.
-- Tauri APIs are mocked in unit tests (`vi.mock('@tauri-apps/api/core')` for `isTauri`, `vi.spyOn`
-  on classes such as `Menu`, since `vi.mocked(Menu.new)` trips `unbound-method`). The app itself
-  can't be driven by Playwright (`tauri-driver` doesn't support macOS): check native parts by hand.
-- E2E code that runs in the page needs DOM types: `e2e/` has its own `tsconfig.e2e.json`.
-  Chromium-only tests use `test.skip(({ browserName }) => …)`, which the lint config allows. The
-  File System Access E2E tests stub the native pickers with handles from the Origin Private File
-  System (`navigator.storage.getDirectory()`), so reads and writes still go through the real API.
+- Coverage excludes `main.ts`, which the E2E suite covers.
+- Files in tests live on the fake disk: `installFakeDisk(files)` from `files/fakeDisk.ts`, with
+  `disk.picks` for what the pickers give and `disk.text(path)`/`disk.write(path, text)` to check and
+  change files. It is self-contained, so E2E tests install it in the page with
+  `page.addInitScript(installFakeDisk, files)` and reach it as `window.fakeDisk`. Keep it answering
+  as `files.rs` and the dialog plugin do. Workspace and App tests mock `fileAccess` with
+  `{ spy: true }`: real code over the disk, with single calls replaced where timing matters.
+- Other Tauri APIs are mocked in unit tests (`vi.mock('@tauri-apps/api/core')` for `isTauri`,
+  `vi.spyOn` on classes such as `Menu`, since `vi.mocked(Menu.new)` trips `unbound-method`). The app
+  itself can't be driven by Playwright (`tauri-driver` doesn't support macOS): check native parts in
+  the app (see Automating the app above).
+- E2E code that runs in the page needs DOM types: `e2e/` has its own `tsconfig.e2e.json`, which
+  allows importing `.ts` files (the fake disk). Browser-specific tests use
+  `test.skip(({ browserName }) => …)`, which the lint config allows.
 - Markdown unit tests build states with `markdownState(input)` from `markdown/testState.ts`, where
   `‸` marks the cursor (two mark a selection). Not `|`, which tables use.
 - The placeholder text sits inside the content DOM, so an empty editor's text is not `''`.
-- The native pickers and the save permission prompt can't be automated: ask the owner to check them
-  by hand in Chrome.
+- A test PNG that Chromium and WebKit show may still be invalid to Firefox: reuse the one in
+  `blocks.spec.ts`.
 
 ## CI and builds
 

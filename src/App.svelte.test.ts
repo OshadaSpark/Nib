@@ -1,19 +1,13 @@
-import {
-  canOpenFolders,
-  lastModified,
-  openFile,
-  openFolder,
-  readFile,
-  saveFile,
-} from '$lib/files/fileAccess'
-import { fakeFolder, fakeText, handle, opened } from '$lib/files/testFiles'
+import { installFakeDisk, type FakeDisk } from '$lib/files/fakeDisk'
+import { openFile, saveFile } from '$lib/files/fileAccess'
 import { EditorView } from '@codemirror/view'
 import { render, screen, within } from '@testing-library/svelte'
 import { userEvent, type UserEvent } from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.svelte'
 
-vi.mock('$lib/files/fileAccess')
+// The real functions, over the fake disk, spied on.
+vi.mock('$lib/files/fileAccess', { spy: true })
 
 const editorView = (): EditorView | null =>
   EditorView.findFromDOM(screen.getByRole('textbox', { name: 'Document' }))
@@ -39,6 +33,17 @@ const shows = (text: string): Promise<void> =>
   })
 
 describe('App', () => {
+  let disk: FakeDisk
+
+  beforeEach(() => {
+    disk = installFakeDisk({
+      '/Docs/notes.md': '',
+      '/Docs/notes.txt': '\uFEFFone\r\ntwo',
+      '/Notes/ideas.md': '# Ideas',
+      '/Notes/journal/today.md': '# Today',
+    })
+  })
+
   afterEach(() => {
     vi.resetAllMocks()
     vi.restoreAllMocks()
@@ -87,12 +92,11 @@ describe('App', () => {
 
   it('shows the items picked in the settings in the status bar', async () => {
     const user = userEvent.setup()
-    vi.mocked(openFile).mockResolvedValue(
-      opened('notes.txt', '\uFEFFone\r\ntwo', handle('notes.txt')),
-    )
+    disk.picks.open = '/Docs/notes.txt'
     render(App)
     await user.click(command('Open'))
-    const status = await screen.findByRole('contentinfo')
+    await screen.findByText('notes.txt')
+    const status = screen.getByRole('contentinfo')
     expect(status).toHaveTextContent(/^Saved/)
 
     await user.click(command('Settings'))
@@ -139,7 +143,7 @@ describe('App', () => {
 
   it('opens a file on Ctrl+O and from the file menu', async () => {
     const user = userEvent.setup()
-    vi.mocked(openFile).mockResolvedValue(opened('notes.txt', 'hi'))
+    disk.picks.open = '/Docs/notes.txt'
     render(App)
 
     await user.keyboard('{Control>}o{/Control}')
@@ -157,7 +161,7 @@ describe('App', () => {
     ['file menu', (user: UserEvent) => user.click(command('Save as'))],
   ])('saves as a new file from the %s', async (_, saveAs) => {
     const user = userEvent.setup()
-    vi.mocked(openFile).mockResolvedValue(opened('notes.md', '', handle('notes.md')))
+    disk.picks.open = '/Docs/notes.md'
     render(App)
     await user.click(command('Open'))
     await screen.findByText('notes.md')
@@ -167,28 +171,12 @@ describe('App', () => {
     expect(saveFile).toHaveBeenCalledWith('', 'notes.md', null, null)
   })
 
-  it('offers to open folders only where the browser can', () => {
-    render(App)
-
-    expect(
-      screen.queryByRole('button', { name: 'Open folder', hidden: true }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('opens a folder, and switches between its files, keeping their edits', async () => {
+  it('opens a folder on Ctrl+Shift+O, and switches between its files, keeping their edits', async () => {
     const user = userEvent.setup()
-    vi.mocked(canOpenFolders).mockReturnValue(true)
-    vi.mocked(openFolder).mockResolvedValue(
-      fakeFolder('Notes', { 'ideas.md': '# Ideas', journal: { 'today.md': '# Today' } }),
-    )
-    vi.mocked(readFile).mockImplementation(async (file) => {
-      const read = await file.getFile()
-      return opened(read.name, await read.text(), file, read.lastModified)
-    })
-    vi.mocked(lastModified).mockImplementation(async (file) => (await file.getFile()).lastModified)
+    disk.picks.folder = '/Notes'
     render(App)
 
-    await user.click(command('Open folder'))
+    await user.keyboard('{Control>}{Shift>}o{/Shift}{/Control}')
     const files = await screen.findByRole('navigation', { name: 'Files' })
     await user.click(within(files).getByRole('button', { name: 'journal' }))
     await user.click(await within(files).findByRole('button', { name: 'today.md' }))
@@ -212,10 +200,7 @@ describe('App', () => {
 
   it('creates, renames and deletes files in the folder', async () => {
     const user = userEvent.setup()
-    const notes = fakeFolder('Notes', { 'ideas.md': '# Ideas' })
-    vi.mocked(canOpenFolders).mockReturnValue(true)
-    vi.mocked(openFolder).mockResolvedValue(notes)
-    vi.mocked(lastModified).mockImplementation(async (file) => (await file.getFile()).lastModified)
+    disk.picks.folder = '/Notes'
     render(App)
     await user.click(command('Open folder'))
     const files = await screen.findByRole('navigation', { name: 'Files' })
@@ -243,7 +228,7 @@ describe('App', () => {
     await vi.waitFor(() => {
       expect(within(files).queryByRole('button', { name: 'goals.md' })).not.toBeInTheDocument()
     })
-    expect(fakeText(notes, 'goals.md')).toBeUndefined()
+    expect(disk.text('/Notes/goals.md')).toBeUndefined()
   })
 
   it('opens the settings from the More menu and on Ctrl+,', async () => {
@@ -308,7 +293,7 @@ describe('App', () => {
   it('formats Markdown from the toolbar, which plain text files only get editing tools in', async () => {
     const user = userEvent.setup()
     layOut(1280)
-    vi.mocked(openFile).mockResolvedValue(opened('notes.txt', 'hi'))
+    disk.picks.open = '/Docs/notes.txt'
     render(App)
     const toolbar = screen.getByRole('toolbar', { name: 'Tools' })
     type('word')
@@ -432,7 +417,7 @@ describe('App', () => {
 
   it('starts a new file from the file menu', async () => {
     const user = userEvent.setup()
-    vi.mocked(openFile).mockResolvedValue(opened('notes.md', 'hi'))
+    disk.picks.open = '/Docs/notes.md'
     render(App)
     await user.click(command('Open'))
     await screen.findByText('notes.md')
