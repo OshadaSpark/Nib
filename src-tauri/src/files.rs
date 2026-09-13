@@ -3,10 +3,6 @@
 //!
 //! Commands run on the async runtime's threads rather than the main one, which draws the window.
 //! Times are milliseconds since the Unix epoch, as JavaScript counts them.
-#![expect(
-    clippy::needless_pass_by_value,
-    reason = "Tauri commands take their arguments by value"
-)]
 
 use std::fs::{self, Metadata, OpenOptions};
 use std::io::{self, Write};

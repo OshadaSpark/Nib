@@ -1,5 +1,8 @@
 import { installFakeDisk, type FakeDisk } from '$lib/files/fakeDisk'
+import { watchOpenedFiles } from '$lib/desktop/openedFiles'
+import { guardClosing } from '$lib/desktop/window'
 import { openFile, saveFile } from '$lib/files/fileAccess'
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import { EditorView } from '@codemirror/view'
 import { render, screen, within } from '@testing-library/svelte'
 import { userEvent, type UserEvent } from '@testing-library/user-event'
@@ -8,6 +11,20 @@ import App from './App.svelte'
 
 // The real functions, over the fake disk, spied on.
 vi.mock('$lib/files/fileAccess', { spy: true })
+// Outside the app, these do nothing; they are stood in for to check what App gives them.
+vi.mock('$lib/desktop/openedFiles', { spy: true })
+vi.mock('$lib/desktop/window', { spy: true })
+// A clipboard in memory.
+vi.mock('@tauri-apps/plugin-clipboard-manager', () => {
+  let clipboard = ''
+  return {
+    readText: () => Promise.resolve(clipboard),
+    writeText: (text: string) => {
+      clipboard = text
+      return Promise.resolve()
+    },
+  }
+})
 
 const editorView = (): EditorView | null =>
   EditorView.findFromDOM(screen.getByRole('textbox', { name: 'Document' }))
@@ -363,18 +380,18 @@ describe('App', () => {
     select(0, 4)
     await user.click(command('Cut'))
     await shows('two')
-    expect(await navigator.clipboard.readText()).toBe('one ')
+    expect(await readText()).toBe('one ')
 
     // Nothing to cut, with nothing selected.
     select(3, 3)
     await user.click(command('Cut'))
-    expect(await navigator.clipboard.readText()).toBe('one ')
+    expect(await readText()).toBe('one ')
     await user.click(command('Paste'))
     await shows('twoone ')
 
     select(0, 3)
     await user.click(command('Copy'))
-    expect(await navigator.clipboard.readText()).toBe('two')
+    expect(await readText()).toBe('two')
 
     await user.click(command('Select all'))
     expect(editorView()?.state.selection.main).toMatchObject({ from: 0, to: 7 })
@@ -442,15 +459,37 @@ describe('App', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('warns before leaving the page with unsaved changes', () => {
+  it('asks before the window closes with unsaved changes', async () => {
+    const user = userEvent.setup()
     render(App)
-    const leave = (): boolean =>
-      window.dispatchEvent(new Event('beforeunload', { cancelable: true }))
-
-    expect(leave()).toBe(true)
+    const allowed = vi.mocked(guardClosing).mock.calls[0]?.[0]
+    expect(await allowed?.()).toBe(true)
 
     type('text')
+    const closing = allowed?.()
+    await user.click(await screen.findByRole('button', { name: 'Discard' }))
 
-    expect(leave()).toBe(false)
+    expect(await closing).toBe(true)
+  })
+
+  it('opens the files opened from the system, or else what was open last time', async () => {
+    let open: (paths: string[]) => void = () => undefined
+    vi.mocked(watchOpenedFiles).mockImplementation((onopen) => {
+      open = onopen
+      return Promise.resolve(() => undefined)
+    })
+    localStorage.setItem('nib:session', JSON.stringify({ folder: '/Notes', file: null }))
+    render(App)
+    expect(await screen.findByRole('navigation', { name: 'Files' })).toBeInTheDocument()
+
+    open(['/Docs/notes.txt', '/Docs/notes.md'])
+
+    expect(await screen.findByText('notes.txt')).toBeInTheDocument()
+    await vi.waitFor(() => {
+      expect(JSON.parse(localStorage.getItem('nib:session') ?? '')).toEqual({
+        folder: '/Notes',
+        file: '/Docs/notes.txt',
+      })
+    })
   })
 })

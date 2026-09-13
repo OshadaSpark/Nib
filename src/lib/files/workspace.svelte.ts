@@ -5,9 +5,12 @@ import { failedWith, modifiedTime } from './fileSystem'
 import { withExtension } from './fileTypes'
 import { Folder } from './folder.svelte'
 import { isValidName, join, nameOf, parentOf, resolvePath } from './paths'
+import type { Session } from './session'
 import { decodeText, TextFile } from './textFile.svelte'
 
 const untitledName = 'Untitled.md'
+const couldNotOpen = 'Couldn’t open the file.'
+const couldNotOpenFolder = 'Couldn’t open the folder.'
 
 /**
  * The open file and folder, and the actions on them. Failures are reported through `error`, never
@@ -46,41 +49,76 @@ export class Workspace {
 
   /** Asks the user for a file to open, starting in the open folder. */
   async open(): Promise<void> {
-    await this.#open(() => openFile(this.folder?.location))
-  }
-
-  /** Opens the file `read` reads, as one dropped on the page or opened from the system. */
-  async openWith(read: () => Promise<OpenedFile>): Promise<void> {
-    await this.#open(read)
-  }
-
-  async #open(read: () => Promise<OpenedFile | null>): Promise<void> {
-    await this.#run('Couldn’t open the file.', async () => {
-      const opened = await read()
-      if (!opened) return
-      const path = opened.location && this.folder?.pathOf(opened.location)
-      const existing = path && this.opened.get(path)
-      if (existing) {
-        if (await this.#confirmDiscard()) this.file = existing
-        return
-      }
-      const file = this.#textFile(opened)
-      if (file && (await this.#confirmDiscard())) this.#show(file, path ?? null)
+    await this.#run(couldNotOpen, async () => {
+      const opened = await openFile(this.folder?.location)
+      if (opened) await this.#openFile(opened)
     })
+  }
+
+  /** Opens the file at `location`, as one opened from the system. */
+  async openLocation(location: string): Promise<void> {
+    await this.#run(couldNotOpen, async () => {
+      await this.#openFile(await readFile(location))
+    })
+  }
+
+  /** Opens the file dropped on the window, which `read` reads. */
+  async openDropped(read: () => Promise<OpenedFile>): Promise<void> {
+    await this.#run(couldNotOpen, async () => {
+      await this.#openFile(await read())
+    })
+  }
+
+  /** Shows `opened`, or its unsaved changes if it is one of the folder's files, opened before. */
+  async #openFile(opened: OpenedFile): Promise<void> {
+    const path = (opened.location && this.folder?.pathOf(opened.location)) ?? null
+    const existing = path === null ? undefined : this.opened.get(path)
+    const file = existing ?? this.#textFile(opened)
+    if (!file || !(await this.#confirmDiscard())) return
+    if (file.path === null) this.#show(file, path)
+    else this.file = file
+    if (path !== null) await this.folder?.reveal(path)
   }
 
   /** Asks the user for a folder, and lists its files. */
   async openFolder(): Promise<void> {
-    await this.#run('Couldn’t open the folder.', async () => {
+    await this.#run(couldNotOpenFolder, async () => {
       const location = await openFolder()
-      if (!location || !(await this.#confirmDiscardAll())) return
-      const folder = new Folder(location)
-      await folder.list()
-      this.folder?.close()
-      this.folder = folder
-      this.opened.clear()
-      this.file = new TextFile(untitledName)
+      if (location) await this.#openFolder(location)
     })
+  }
+
+  /** Opens the folder at `location`, and lists its files. */
+  async openFolderAt(location: string): Promise<void> {
+    await this.#run(couldNotOpenFolder, () => this.#openFolder(location))
+  }
+
+  async #openFolder(location: string): Promise<void> {
+    if (!(await this.#confirmDiscardAll())) return
+    const folder = new Folder(location)
+    await folder.list()
+    this.folder?.close()
+    this.folder = folder
+    this.opened.clear()
+    this.file = new TextFile(untitledName)
+  }
+
+  /**
+   * Opens again what was open when the app last closed. What has been moved or deleted since is
+   * left out, without an error, as it's no action of the user's that failed.
+   */
+  async restore({ folder, file }: Session): Promise<void> {
+    if (folder) await this.openFolderAt(folder)
+    if (file) await this.openLocation(file)
+    this.error = null
+  }
+
+  /**
+   * Whether the window may close: after asking, if any file has unsaved changes. Not while an action
+   * is under way, such as saving.
+   */
+  async confirmClose(): Promise<boolean> {
+    return !this.#busy && this.#confirmDiscardAll()
   }
 
   /** Shows the folder's file at `path`, with its unsaved changes if it has been opened before. */

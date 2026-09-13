@@ -9,6 +9,8 @@ export interface MenuCommands {
   save: () => void
   saveAs: () => void
   settings: () => void
+  /** Closes the window, which asks about unsaved changes; the system's Quit wouldn't. */
+  quit: () => void
 }
 
 const separator: PredefinedMenuItemOptions = { item: 'Separator' }
@@ -32,7 +34,7 @@ export const menuItems = (commands: MenuCommands): SubmenuOptions[] => [
       { item: 'HideOthers' },
       { item: 'ShowAll' },
       separator,
-      { item: 'Quit' },
+      { text: 'Quit Nib', accelerator: 'CmdOrCtrl+Q', action: commands.quit },
     ],
   },
   {

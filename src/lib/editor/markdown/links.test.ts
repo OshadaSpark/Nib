@@ -1,7 +1,10 @@
 import { EditorState } from '@codemirror/state'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { isShowableImage, linkAt, localFiles, openLink, type LocalFiles } from './links'
 import { markdownState } from './testState'
+
+vi.mock('@tauri-apps/plugin-opener')
 
 /** Local files that open every link, and have no images. */
 const files = () => ({
@@ -74,16 +77,14 @@ describe('isShowableImage', () => {
 
 describe('openLink', () => {
   afterEach(() => {
-    vi.unstubAllGlobals()
+    vi.resetAllMocks()
   })
 
-  it('opens web and email links in a new tab', () => {
-    // These tests run in Node, which has no window.
-    const open = vi.fn()
-    vi.stubGlobal('window', { open })
+  it.each(['https://example.com', 'mailto:me@example.com'])('opens %s in its app', (url) => {
+    vi.mocked(openUrl).mockResolvedValue()
 
-    expect(openLink(EditorState.create(), 'https://example.com')).toBe(true)
-    expect(open).toHaveBeenCalledWith('https://example.com', '_blank', 'noopener,noreferrer')
+    expect(openLink(EditorState.create(), url)).toBe(true)
+    expect(openUrl).toHaveBeenCalledExactlyOnceWith(url)
   })
 
   it('opens relative links through local files, if there are any', () => {

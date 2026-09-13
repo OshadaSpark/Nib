@@ -2,6 +2,7 @@
   import type { EditorView } from '@codemirror/view'
   import { onMount } from 'svelte'
   import { setAppMenu } from '$lib/desktop/menu'
+  import { closeWindow } from '$lib/desktop/window'
   import Toolbar from '$lib/editor/Toolbar.svelte'
   import { isMarkdownName } from '$lib/files/fileTypes'
   import type { Workspace } from '$lib/files/workspace.svelte'
@@ -89,6 +90,9 @@
       save,
       saveAs,
       settings: openSettings,
+      quit: () => {
+        closeWindow().catch(console.error)
+      },
     }).catch(console.error)
   })
 

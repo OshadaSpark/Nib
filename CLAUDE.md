@@ -54,8 +54,10 @@ src/
                               whether the search panel is open), the error toast (dismissible) and
                               the footer with StatusBar (if any item is on). Header and footer fade
                               while writing (if on), until the pointer moves. Also the focus check
-                              for disk changes, beforeunload guard, document title, drop overlay,
-                              dialog
+                              for disk changes, document and window title, edited dot and window
+                              theme (effects), full screen, close guard, files opened from the
+                              system or else the last session (onMount), session saving, drop
+                              overlay, dialog
   Header.svelte               One row: files toggle, file name (truncated) with the file menu
                               beside it (a popover: New/Open/Open folder/Save/Save as, shortcuts
                               shown per platform), then the Toolbar, given the header's measured
@@ -67,14 +69,21 @@ src/
                               selection too), file type, line endings, encoding: each if on
   main.ts                     Mounts App
   app.css                     Design tokens (--color-*, --font-*, --shadow-raised, --bar-height,
-                              --window-controls), base button style, .icon-button, .popover
-                              (anchored under its header
+                              --window-controls, less in full screen), unselectable chrome, base
+                              button style, .icon-button, .popover (anchored under its header
                               button via position-anchor), .menu (a popover's commands, with icon
-                              and shortcut, in sections), dialog (raised, with backdrop),
-                              .truncate, .visually-hidden
-  lib/desktop/
+                              and shortcut, in sections; flex, not grid), dialog (raised, with
+                              backdrop), .truncate, .visually-hidden
+  lib/desktop/                The app's side of the frontend; each function a no-op outside Tauri
+                              (tests, E2E)
     menu.ts                   menuItems(commands) (the app, File, Edit and Window menus; Edit is the
-                              system's items) and setAppMenu, a no-op outside Tauri (tests, E2E)
+                              system's items; Quit is the app's, closing the window) and setAppMenu
+    window.ts                 setWindowTitle, setDocumentEdited, setWindowTheme, watchFullScreen,
+                              guardClosing(allowed), closeWindow
+    openedFiles.ts            watchOpenedFiles(onopen): files opened from Finder, first those the
+                              app started with (taken from opened.rs), then as they come
+    whileMounted.ts           whileMounted(watching): the stop function for onMount, logging a
+                              failure to start
   lib/ui/
     Icon.svelte               Outline icons by name (path data on a 16 × 16 grid), sized by prop
     shortcut.ts               ⌘/Ctrl shortcuts in the platform's notation, and for aria-keyshortcuts
@@ -165,19 +174,29 @@ src/
     NameField.svelte          Inline name input: Enter submits, Escape cancels, blur submits
     objectURLs.ts             Object URLs per key and modified time (get/set), revoked together
     DropOverlay.svelte        Window-level drag and drop of files, with an overlay while dragging
+    session.ts                loadSession/saveSession: the folder and file open last time
+                              (localStorage)
     fakeDisk.ts               installFakeDisk(files): for tests, a disk in memory behind the Tauri
                               calls (file commands, pickers: disk.picks), also window.fakeDisk
     testFiles.ts              opened(name, text, location?, modified?), for tests
 src-tauri/
   tauri.conf.json             Window (overlay title bar, traffic light position, HTML drag and drop
-                              kept), CSP without network access, bundle (app and dmg, macOS 26)
-  capabilities/default.json   The page's permissions: core defaults, dragging and zooming the
-                              window, the open and save panels
+                              kept), CSP without network access, bundle (app and dmg, macOS 26,
+                              file associations: .md/.markdown Default, .txt Alternate)
+  capabilities/default.json   The page's permissions: core defaults, dragging, zooming, titling,
+                              theming and closing the window, the open and save panels, opening
+                              web and email links, reading and writing the clipboard's text
   src/files.rs                The file commands (atomic writes through tempfile, keeping
                               permissions and symbolic links; rename refusing taken names unless
                               the same file; Trash), with ErrorKind for the frontend; cargo tests
-  src/lib.rs, src/main.rs     Starts the app, with the dialog plugin and the file commands
-  Cargo.toml                  Clippy pedantic, unsafe forbidden, release profile for size
+  src/opened.rs               Opened (state): files opened from the system, kept until the page
+                              takes them (opened_files), with a files-opened event
+  src/window.rs               set_document_edited: NSWindow's edited dot (objc2-app-kit, the one
+                              unsafe block), on the main thread
+  src/lib.rs, src/main.rs     Starts the app: plugins (window state, dialog, opener, clipboard),
+                              the commands, and RunEvent::Opened into opened.rs
+  Cargo.toml                  Clippy pedantic (owned command arguments allowed), unsafe denied
+                              (allowed in window.rs), release profile for size
   icons/                      icon.svg (on the macOS grid) and the icon.icns/icon.png made from it
 ```
 
@@ -258,9 +277,23 @@ the editor applies as a diff. The editor owns the document; it reports each chan
   not hold `#busy` while it reads, or it drops the user's actions (it counts started actions and
   gives way instead). TypeScript narrows private fields across `await`, so recheck state through a
   counter, not `this.#busy`.
-- **Tauri command arguments** are owned (`PathBuf`, `String`), which Clippy's pedantic
-  `needless_pass_by_value` flags: `files.rs` expects it with a reason. Commands run with
-  `#[tauri::command(async)]`, off the main thread that draws the window.
+- **Tauri command arguments** are owned (`PathBuf`, `String`, `State`), which Clippy's pedantic
+  `needless_pass_by_value` flags: `Cargo.toml` allows it. File commands run with
+  `#[tauri::command(async)]`, off the main thread that draws the window; commands that touch
+  AppKit (`window.rs`) stay sync, which runs them on the main thread.
+- **The window's file drops take every drag:** with `dragDropEnabled`, Tauri's handler claims all
+  drags, so WebKit gets none: no dragging text within the editor, nor from other apps. It stays off;
+  files dropped on the window come through HTML (no path), and the Dock icon gives paths instead
+  (file associations, `RunEvent::Opened`).
+- **Quitting:** `tao` doesn't implement `applicationShouldTerminate`, so the system's Quit (the
+  predefined menu item, the Dock) can't be held up. The menu's Quit is the app's own item, closing
+  the window through `guardClosing`; quitting from the Dock still skips it.
+- **Flags set in callbacks:** TypeScript narrows a `boolean` set in a callback to its initial value
+  where it's read after `await` (no-unnecessary-condition then flags it); use a count (as
+  `openFromSystem` in `App.svelte`).
+- **Dev and release keep separate storage:** `pnpm tauri dev` loads from `localhost:5173`, the
+  built app from `tauri://localhost`, so preferences and the session differ between them. The
+  window state file (size, position) is shared, by the bundle identifier.
 - **Blobs for images need their type:** Firefox shows no image from an untyped blob, and no browser
   shows SVG from one (`imageTypeOf`).
 - **Keys reaching the editor after focus moves:** a field that hands focus to the editor on Enter
@@ -272,9 +305,9 @@ the editor applies as a diff. The editor owns the document; it reports each chan
   `icon.icns` and `icon.png`. The SVG draws the shape at 824 of 1024 points, the macOS icon grid.
 - **Build target:** `build.target` is `safari26`, the WKWebView of macOS 26, so `light-dark()` and
   the rest ship uncompiled. E2E still runs in Chromium and Firefox, which support them too.
-- **Grid on a modal `<dialog>` in WKWebView:** the system WebKit stretches a dialog that is a grid
-  to the window's height (between its `inset: 0`), and its rows with it. Playwright's WebKit
-  doesn't. Lay dialogs out with flex or blocks (as `ConfirmDialog`).
+- **Grids in the top layer in WKWebView:** the system WebKit stretches a modal `<dialog>` or a
+  popover laid out as a grid to the window's height (between its insets), and its rows with it.
+  Playwright's WebKit doesn't. Use flex or blocks (as `ConfirmDialog` and `.menu`).
 - **Traffic lights:** `trafficLightPosition.y` isn't the buttons' top: their centre sits at about
   `y - 2`, so `y: 26` centres them in the 3rem header. `--window-controls` (5rem) is the room they
   take, on the header or, when the file tree is beside it, on the tree's heading.
@@ -285,7 +318,7 @@ the editor applies as a diff. The editor owns the document; it reports each chan
   and CodeMirror and Svelte set inline styles. `dangerousDisableAssetCspModification: ["style-src"]`
   keeps `'unsafe-inline'` working for styles only. `devCsp` also allows Vite's HMR websocket.
 - **`document.title` doesn't reach the window title** in Tauri (seen in the Window menu and
-  Mission Control): set it through the window API.
+  Mission Control): `setWindowTitle` sets it; `<title>` stays for the E2E tests' `toHaveTitle`.
 - **Menu bar shortcuts:** the page gets keys before the menu bar. `Header`'s keydown handler takes
   ⌘O, ⇧⌘O, ⌘S, ⇧⌘S and ⌘, (preventing them, so the menu items don't run too); the menu bar's
   accelerators then only label them. ⌘N is the menu bar's own (browsers keep it for a new window).
