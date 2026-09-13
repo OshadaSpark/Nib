@@ -12,7 +12,7 @@ import { configDefaults, defineConfig } from 'vitest/config'
 const serviceWorker = (): Plugin => {
   let publicDir = ''
   return {
-    name: 'typer:service-worker',
+    name: 'nib:service-worker',
     apply: 'build',
     // After Vite's own plugins, which emit the HTML.
     enforce: 'post',

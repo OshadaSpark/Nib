@@ -52,10 +52,10 @@ test.describe('with the File System Access API', () => {
     await page.keyboard.press('ControlOrMeta+o')
     await expect(page.getByText('notes.md')).toBeVisible()
     await page.keyboard.type('new ')
-    await expect(page).toHaveTitle('• notes.md — typer')
+    await expect(page).toHaveTitle('• notes.md — nib')
     await page.keyboard.press('ControlOrMeta+s')
 
-    await expect(page).toHaveTitle('notes.md — typer')
+    await expect(page).toHaveTitle('notes.md — nib')
     expect(await readText(page, 'notes.md')).toBe('new first\r\nsecond')
   })
 
@@ -69,7 +69,7 @@ test.describe('with the File System Access API', () => {
     await writeText(page, 'notes.md', 'one 2 three')
     await page.evaluate(() => window.dispatchEvent(new Event('focus')))
     await expect(lines(page)).toHaveText(['one 2 three'])
-    await expect(page).toHaveTitle('notes.md — typer')
+    await expect(page).toHaveTitle('notes.md — nib')
 
     // The cursor stayed at the end of the line.
     await page.keyboard.type('!')
@@ -83,7 +83,7 @@ test.describe('with the File System Access API', () => {
       .click()
 
     await expect(lines(page)).toHaveText(['changed again'])
-    await expect(page).toHaveTitle('notes.md — typer')
+    await expect(page).toHaveTitle('notes.md — nib')
   })
 
   test('opens a folder, and switches between its files, keeping their edits', async ({ page }) => {
@@ -125,16 +125,16 @@ test.describe('with the File System Access API', () => {
     await files.getByRole('button', { name: 'New file' }).click()
     await page.keyboard.type('plans')
     await page.keyboard.press('Enter')
-    await expect(page).toHaveTitle('plans.md — typer')
+    await expect(page).toHaveTitle('plans.md — nib')
     await page.keyboard.type('# Plans')
     await page.keyboard.press('ControlOrMeta+s')
-    await expect(page).toHaveTitle('plans.md — typer')
+    await expect(page).toHaveTitle('plans.md — nib')
 
     await files.getByRole('button', { name: 'plans.md', exact: true }).hover()
     await files.getByRole('button', { name: 'Rename plans.md' }).click()
     await page.keyboard.type('goals')
     await page.keyboard.press('Enter')
-    await expect(page).toHaveTitle('goals.md — typer')
+    await expect(page).toHaveTitle('goals.md — nib')
     expect(await readText(page, 'goals.md')).toBe('# Plans')
     expect(await exists('plans.md')).toBe(false)
 
@@ -146,7 +146,7 @@ test.describe('with the File System Access API', () => {
       .click()
     await expect(files.getByRole('button', { name: 'goals.md', exact: true })).toBeHidden()
     expect(await exists('goals.md')).toBe(false)
-    await expect(page).toHaveTitle('Untitled.md — typer')
+    await expect(page).toHaveTitle('Untitled.md — nib')
   })
 
   test('shows images and opens notes from relative paths in the folder', async ({ page }) => {
@@ -183,7 +183,7 @@ test.describe('with the File System Access API', () => {
     expect(await image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(1)
 
     await page.getByText('today', { exact: true }).click({ modifiers: ['ControlOrMeta'] })
-    await expect(page).toHaveTitle('today.md — typer')
+    await expect(page).toHaveTitle('today.md — nib')
     await expect(lines(page)).toHaveText(['# Today'])
   })
 
@@ -191,7 +191,7 @@ test.describe('with the File System Access API', () => {
     await page.keyboard.type('# Draft')
     await runCommand(page, 'Save')
 
-    await expect(page).toHaveTitle('saved.md — typer')
+    await expect(page).toHaveTitle('saved.md — nib')
     expect(await readText(page, 'saved.md')).toBe('# Draft')
   })
 })
@@ -230,7 +230,7 @@ test.describe('without the File System Access API', () => {
 
     expect(download.suggestedFilename()).toBe('notes.txt')
     expect(await readFile(await download.path(), 'utf8')).toBe('zero one\r\ntwo')
-    await expect(page).toHaveTitle('notes.txt — typer')
+    await expect(page).toHaveTitle('notes.txt — nib')
   })
 
   test('keeps a UTF-8 byte-order mark', async ({ page }) => {
@@ -253,7 +253,7 @@ test.describe('without the File System Access API', () => {
     ).setFiles({ name: 'latin1.txt', mimeType: 'text/plain', buffer: Buffer.from([0x63, 0xe9]) })
 
     await expect(page.getByRole('alert')).toHaveText('latin1.txt isn’t a UTF-8 text file.')
-    await expect(page).toHaveTitle('Untitled.md — typer')
+    await expect(page).toHaveTitle('Untitled.md — nib')
   })
 
   test('treats files without a Markdown extension as plain text', async ({ page }) => {
@@ -281,7 +281,7 @@ test.describe('dropping a file', () => {
     await expect(page.getByText('Drop to open')).toBeVisible()
     await editor.dispatchEvent('drop', { dataTransfer })
 
-    await expect(page).toHaveTitle('dropped.md — typer')
+    await expect(page).toHaveTitle('dropped.md — nib')
     // The cursor is on the heading, so its markup shows.
     await expect(lines(page)).toHaveText(['# Dropped'])
     await expect(page.getByText('Drop to open')).toBeHidden()

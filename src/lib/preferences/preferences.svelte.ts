@@ -1,6 +1,6 @@
 import type { Appearance } from '$lib/editor/theme'
 
-const storageKey = 'typer:preferences'
+const storageKey = 'nib:preferences'
 
 export const themes = ['system', 'light', 'dark'] as const
 export type Theme = (typeof themes)[number]
