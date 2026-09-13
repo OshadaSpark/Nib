@@ -39,6 +39,7 @@ pnpm test:rust       # cargo test
 pnpm test:e2e        # builds, then Playwright in Chromium, Firefox and WebKit
 pnpm build           # watch the bundle size in the output
 pnpm tauri dev       # the app, with HMR; pnpm tauri build for Nib.app
+pnpm app:install     # builds Nib.app and replaces /Applications/Nib.app with it
 ```
 
 Before calling work finished, run all of these, the same as CI. The pre-push hook only runs `check`
@@ -80,6 +81,8 @@ src/
                               system's items; Quit is the app's, closing the window) and setAppMenu
     window.ts                 setWindowTitle, setDocumentEdited, setWindowTheme, watchFullScreen,
                               guardClosing(allowed), closeWindow
+    diskWatch.ts              watchDisk(location) (the folder, or else the file; null stops) and
+                              onDiskChange(onchange): App runs checkDisk on each change
     openedFiles.ts            watchOpenedFiles(onopen): files opened from Finder, first those the
                               app started with (taken from opened.rs), then as they come
     whileMounted.ts           whileMounted(watching): the stop function for onMount, logging a
@@ -182,7 +185,8 @@ src/
 src-tauri/
   tauri.conf.json             Window (overlay title bar, traffic light position, HTML drag and drop
                               kept), CSP without network access, bundle (app and dmg, macOS 26,
-                              file associations: .md/.markdown Default, .txt Alternate)
+                              file associations: .md/.markdown Default, .txt Alternate; signed
+                              ad hoc; version from package.json)
   capabilities/default.json   The page's permissions: core defaults, dragging, zooming, titling,
                               theming and closing the window, the open and save panels, opening
                               web and email links, reading and writing the clipboard's text
@@ -191,10 +195,13 @@ src-tauri/
                               the same file; Trash), with ErrorKind for the frontend; cargo tests
   src/opened.rs               Opened (state): files opened from the system, kept until the page
                               takes them (opened_files), with a files-opened event
+  src/watch.rs                watch(path): notify's debounced watcher (250 ms) on the folder or
+                              file, emitting disk-changed, leaving out dot files and folders
   src/window.rs               set_document_edited: NSWindow's edited dot (objc2-app-kit, the one
                               unsafe block), on the main thread
   src/lib.rs, src/main.rs     Starts the app: plugins (window state, dialog, opener, clipboard),
-                              the commands, and RunEvent::Opened into opened.rs
+                              state (Opened, Watching), the commands, and RunEvent::Opened into
+                              opened.rs
   Cargo.toml                  Clippy pedantic (owned command arguments allowed), unsafe denied
                               (allowed in window.rs), release profile for size
   icons/                      icon.svg (on the macOS grid) and the icon.icns/icon.png made from it
@@ -291,6 +298,14 @@ the editor applies as a diff. The editor owns the document; it reports each chan
 - **Flags set in callbacks:** TypeScript narrows a `boolean` set in a callback to its initial value
   where it's read after `await` (no-unnecessary-condition then flags it); use a count (as
   `openFromSystem` in `App.svelte`).
+- **Signing:** `signingIdentity: "-"` signs the whole bundle ad hoc, sealing its resources under the
+  bundle identifier; without it, only the binary is signed (by the linker), with an identifier
+  that changes each build. There's no Apple developer account, so no notarisation: other Macs'
+  Gatekeeper blocks downloads until allowed in Privacy & Security.
+- **Measuring the app:** launch it with `NSWorkspace.openApplication` and poll
+  `CGWindowListCopyWindowInfo` for its window, then for the title the page sets (the page has
+  run); `footprint -p` gives memory, for Nib and the three WebKit processes (GPU, Networking,
+  WebContent) that appear with it. The first launch after installing is about four times slower.
 - **Dev and release keep separate storage:** `pnpm tauri dev` loads from `localhost:5173`, the
   built app from `tauri://localhost`, so preferences and the session differ between them. The
   window state file (size, position) is shared, by the bundle identifier.
@@ -371,8 +386,9 @@ at {x, y}` in screen points) and `screencapture -l <window id>` capture it; mixi
 - A test PNG that Chromium and WebKit show may still be invalid to Firefox: reuse the one in
   `blocks.spec.ts`.
 
-## CI and builds
+## CI, builds and releases
 
 CI (`.github/workflows/ci.yml`) runs the quality, unit, E2E and Rust (macOS) jobs on PRs and on
-pushes to `main`. There is no deploy: `pnpm tauri build` makes `Nib.app` locally, which the owner
-copies to `/Applications`.
+pushes to `main`. There is no deploy: the owner installs with `pnpm app:install`. A tag `v<version>`
+(the version in `package.json`, which the app takes) runs `.github/workflows/release.yml`, which
+builds the app and attaches its disk image to a GitHub release; tag and push only when asked.
