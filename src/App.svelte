@@ -2,7 +2,6 @@
   import { searchPanelOpen } from '@codemirror/search'
   import type { EditorSelection, Text } from '@codemirror/state'
   import { EditorView } from '@codemirror/view'
-  import { onMount } from 'svelte'
   import { MediaQuery } from 'svelte/reactivity'
   import ConfirmDialog from '$lib/dialog/ConfirmDialog.svelte'
   import { Confirmation } from '$lib/dialog/confirmation.svelte'
@@ -11,7 +10,7 @@
   import { localFiles } from '$lib/editor/markdown/links'
   import type { EditorSnapshot } from '$lib/editor/snapshot'
   import DropOverlay from '$lib/files/DropOverlay.svelte'
-  import { readFile, type OpenedFile } from '$lib/files/fileAccess'
+  import type { OpenedFile } from '$lib/files/fileAccess'
   import FileTree from '$lib/files/FileTree.svelte'
   import type { TextFile } from '$lib/files/textFile.svelte'
   import { Workspace } from '$lib/files/workspace.svelte'
@@ -24,14 +23,6 @@
   const workspace = new Workspace(confirmation.ask)
   const preferences = new Preferences()
 
-  // Files opened from the system with the installed app (File Handling API, Chromium). Each launch
-  // gets a window of its own, so this only has the file to open.
-  onMount(() => {
-    window.launchQueue?.setConsumer(({ files: [handle] }) => {
-      if (handle instanceof FileSystemFileHandle) openWith(() => readFile(handle))
-    })
-  })
-
   $effect(() => {
     preferences.save()
   })
@@ -41,15 +32,7 @@
     document.documentElement.dataset.theme = preferences.theme
   })
 
-  const systemDark = new MediaQuery('(prefers-color-scheme: dark)')
-  /** Colours the browser's or installed app's title bar like the page (`--color-bg`). */
-  const themeColor = $derived(
-    preferences.theme === 'dark' || (preferences.theme === 'system' && systemDark.current)
-      ? '#19191b'
-      : '#fdfdfc',
-  )
-
-  const title = $derived(`${workspace.file.dirty ? '• ' : ''}${workspace.file.name} — nib`)
+  const title = $derived(`${workspace.file.dirty ? '• ' : ''}${workspace.file.name} — Nib`)
 
   /** The editor's selection, for the status bar. */
   let selection = $state.raw<EditorSelection | null>(null)
@@ -143,7 +126,6 @@
 
 <svelte:head>
   <title>{title}</title>
-  <meta name="theme-color" content={themeColor} />
 </svelte:head>
 
 <svelte:window {onbeforeunload} {onfocus} onpointermove={stopWriting} onpointerdown={stopWriting} />
@@ -215,6 +197,13 @@
       'sidebar footer' auto
       / auto minmax(0, 1fr);
     block-size: 100dvh;
+
+    /* Beside the file tree, the header leaves the window's controls to it. */
+    @media (width >= 48rem) {
+      &:has(> aside) > :global(header) {
+        padding-inline-start: 0.5rem;
+      }
+    }
 
     /* Out of the way while writing, back when the pointer moves or the keyboard reaches them. */
     & > :global(header),

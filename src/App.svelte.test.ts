@@ -60,13 +60,13 @@ describe('App', () => {
     expect(screen.getByText('Untitled.md')).toBeInTheDocument()
     expect(screen.queryByText('Edited')).not.toBeInTheDocument()
     await vi.waitFor(() => {
-      expect(document.title).toBe('Untitled.md — nib')
+      expect(document.title).toBe('Untitled.md — Nib')
     })
 
     type('text')
 
     expect(await screen.findByText('Edited')).toBeInTheDocument()
-    expect(document.title).toBe('• Untitled.md — nib')
+    expect(document.title).toBe('• Untitled.md — Nib')
   })
 
   it('counts lines, words and characters, or those selected', async () => {
@@ -246,26 +246,6 @@ describe('App', () => {
     expect(fakeText(notes, 'goals.md')).toBeUndefined()
   })
 
-  it('opens the file the installed app was launched with', async () => {
-    // jsdom has neither handles nor a launch queue.
-    class FileHandle {
-      readonly name = 'launched.md'
-    }
-    vi.stubGlobal('FileSystemFileHandle', FileHandle)
-    const launched = new FileHandle() as unknown as FileSystemFileHandle
-    vi.stubGlobal('launchQueue', {
-      setConsumer: (consumer: (params: LaunchParams) => void) => {
-        consumer({ files: [launched] })
-      },
-    })
-    vi.mocked(readFile).mockResolvedValue(opened('launched.md', '# Launched', launched))
-
-    render(App)
-
-    expect(await screen.findByText('launched.md')).toBeInTheDocument()
-    expect(readFile).toHaveBeenCalledWith(launched)
-  })
-
   it('opens the settings from the More menu and on Ctrl+,', async () => {
     const user = userEvent.setup()
     render(App)
@@ -288,7 +268,6 @@ describe('App', () => {
     await user.click(option('Dark'))
 
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
-    expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute('content', '#19191b')
     unmount()
     render(App)
     await user.click(command('Settings'))

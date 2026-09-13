@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { EditorView } from '@codemirror/view'
+  import { onMount } from 'svelte'
+  import { setAppMenu } from '$lib/desktop/menu'
   import Toolbar from '$lib/editor/Toolbar.svelte'
   import { canOpenFolders } from '$lib/files/fileAccess'
   import { isMarkdownName } from '$lib/files/fileTypes'
@@ -70,15 +72,28 @@
   /** The file menu's commands, in groups. */
   const commands: Command[][] = [
     [
-      { label: 'New', run: newFile },
+      { label: 'New', run: newFile, keys: ['N'] },
       { label: 'Open', run: open, keys: ['O'] },
-      ...(canOpenFolders() ? [{ label: 'Open folder', run: openFolder }] : []),
+      ...(canOpenFolders()
+        ? [{ label: 'Open folder', run: openFolder, keys: ['O', true] } satisfies Command]
+        : []),
     ],
     [
       { label: 'Save', run: save, keys: ['S'] },
       { label: 'Save as', run: saveAs, keys: ['S', true] },
     ],
   ]
+
+  onMount(() => {
+    setAppMenu({
+      newFile,
+      open,
+      openFolder: canOpenFolders() ? openFolder : undefined,
+      save,
+      saveAs,
+      settings: openSettings,
+    }).catch(console.error)
+  })
 
   /** Handles ⌘/Ctrl+O (open), ⌘/Ctrl+S (save), ⌘/Ctrl+Shift+S (save as) and ⌘/Ctrl+, (settings). */
   const onkeydown = (event: KeyboardEvent): void => {
@@ -104,8 +119,9 @@
 
 <svelte:window {onkeydown} />
 
-<!-- The file's name at the start, with its menu, and the toolbar in the rest of the row. -->
-<header bind:clientWidth={width}>
+<!-- The file's name at the start, with its menu, and the toolbar in the rest of the row. It stands
+     in for the window's title bar, so it drags the window, except from its controls. -->
+<header bind:clientWidth={width} data-tauri-drag-region="deep">
   {#if workspace.folder}
     <button
       type="button"
@@ -164,7 +180,7 @@
     align-items: center;
     gap: 0.25rem;
     block-size: var(--bar-height);
-    padding-inline: 0.5rem;
+    padding-inline: var(--window-controls) 0.5rem;
     font-size: 0.875rem;
     color: var(--color-subtle);
   }

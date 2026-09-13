@@ -52,17 +52,19 @@
     inline-size: min(24rem, 100% - 2rem);
     font-size: 0.875rem;
 
+    /* Not a grid, which WebKit stretches to the height of the window, between the dialog's insets. */
     &[open] {
-      display: grid;
-      /* The text spans all columns; the buttons sit at the end of the last row. */
-      grid-template-columns: 1fr auto auto;
+      display: flex;
+      flex-wrap: wrap;
+      /* The text takes whole rows; the buttons sit at the end of the last one. */
+      justify-content: end;
       gap: 0.5rem;
     }
   }
 
   h2,
   p {
-    grid-column: 1 / -1;
+    flex-basis: 100%;
     margin: 0;
   }
 
@@ -84,10 +86,6 @@
     &:hover {
       background-color: var(--color-active);
     }
-  }
-
-  button:first-of-type {
-    grid-column-start: 2;
   }
 
   .confirm {

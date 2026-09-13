@@ -29,30 +29,31 @@ const tables = (input: string): { from: number; to: number; table: Table }[] =>
 
 describe('images', () => {
   it('shows images below the line they are on', () => {
-    expect(images('A ![one](https://a.com/1.png) and ![two](https://a.com/2.png) B\nnext')).toEqual(
-      [
-        { at: 63, src: 'https://a.com/1.png', alt: 'one' },
-        { at: 63, src: 'https://a.com/2.png', alt: 'two' },
-      ],
-    )
+    expect(
+      images('A ![one](data:image/png,1.png) and ![two](data:image/png,2.png) B\nnext'),
+    ).toEqual([
+      { at: 65, src: 'data:image/png,1.png', alt: 'one' },
+      { at: 65, src: 'data:image/png,2.png', alt: 'two' },
+    ])
   })
 
   it('resolves reference images', () => {
-    expect(images('![alt][img]\n\n[img]: https://a.com/1.png')).toEqual([
-      { at: 11, src: 'https://a.com/1.png', alt: 'alt' },
+    expect(images('![alt][img]\n\n[img]: data:image/png,1.png')).toEqual([
+      { at: 11, src: 'data:image/png,1.png', alt: 'alt' },
     ])
   })
 
   it('finds images in any block of text', () => {
-    expect(images('# ![h](https://a.com/h.png)\n\n> - ![q](https://a.com/q.png)')).toHaveLength(2)
+    expect(images('# ![h](data:image/png,h.png)\n\n> - ![q](data:image/png,q.png)')).toHaveLength(2)
   })
 
   it.each([
+    '![remote](https://a.com/1.png)',
     '![relative](image.png)',
     '![undefined][nothing]',
-    '```md\n![code](https://a.com/1.png)\n```',
-    '`![inline code](https://a.com/1.png)`',
-    '| ![in a table](https://a.com/1.png) |\n| - |',
+    '```md\n![code](data:image/png,1.png)\n```',
+    '`![inline code](data:image/png,1.png)`',
+    '| ![in a table](data:image/png,1.png) |\n| - |',
   ])('shows no image for %j', (input) => {
     expect(images(input)).toEqual([])
   })
@@ -156,7 +157,7 @@ describe('blockWidgets', () => {
     const unchanged = state.update({}).state
     expect(unchanged.field(blockWidgets)).toBe(state.field(blockWidgets))
 
-    state = state.update({ changes: { from: 0, insert: '![i](https://a.com/i.png)' } }).state
+    state = state.update({ changes: { from: 0, insert: '![i](data:image/png,i.png)' } }).state
     expect(state.field(blockWidgets).size).toBe(1)
   })
 })

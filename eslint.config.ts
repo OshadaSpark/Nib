@@ -8,7 +8,7 @@ import svelteConfig from './svelte.config.js'
 
 // https://eslint.org/docs/latest/use/configure/configuration-files
 export default defineConfig(
-  globalIgnores(['dist/', 'coverage/', 'playwright-report/', 'test-results/']),
+  globalIgnores(['dist/', 'coverage/', 'playwright-report/', 'test-results/', 'src-tauri/']),
 
   js.configs.recommended,
   ts.configs.strictTypeChecked,

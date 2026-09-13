@@ -121,17 +121,14 @@ describe('live preview', () => {
   })
 
   it('shows images below their Markdown', () => {
-    const textbox = renderEditor('Intro\n![A cat](https://example.com/cat.png)')
+    const textbox = renderEditor('Intro\n![A cat](data:image/png,cat)')
 
-    expect(screen.getByRole('img', { name: 'A cat' })).toHaveAttribute(
-      'src',
-      'https://example.com/cat.png',
-    )
-    expect(textbox).toHaveTextContent('![A cat](https://example.com/cat.png)')
+    expect(screen.getByRole('img', { name: 'A cat' })).toHaveAttribute('src', 'data:image/png,cat')
+    expect(textbox).toHaveTextContent('![A cat](data:image/png,cat)')
   })
 
   it('hides images that fail to load', async () => {
-    renderEditor('Intro\n![A cat](https://example.com/cat.png)')
+    renderEditor('Intro\n![A cat](data:image/png,cat)')
     const image = screen.getByRole('img', { name: 'A cat' })
 
     await fireEvent.error(image)
@@ -173,13 +170,13 @@ describe('live preview', () => {
 
     it('renders inline Markdown in cells', () => {
       renderEditor(
-        'Intro\n| a | b |\n| - | - |\n| ~~s~~ `c` | ![i](https://a.com/i.png) ![r](r.png) |',
+        'Intro\n| a | b |\n| - | - |\n| ~~s~~ `c` | ![i](data:image/png,i) ![r](r.png) ![w](https://a.com/w.png) |',
       )
 
       expect(screen.getByRole('cell', { name: 's c' })).toContainHTML('<s>s</s> <code>c</code>')
-      expect(screen.getByRole('img', { name: 'i' })).toHaveAttribute('src', 'https://a.com/i.png')
-      // Without local files, relative images show their alt text.
-      expect(screen.getByRole('cell', { name: 'i r' })).toHaveTextContent('r')
+      expect(screen.getByRole('img', { name: 'i' })).toHaveAttribute('src', 'data:image/png,i')
+      // Without local files, relative images show their alt text, as images from the web always do.
+      expect(screen.getByRole('cell', { name: 'i r w' })).toHaveTextContent('r w')
     })
 
     it('shows the source with the cursor in a cell when the cell is clicked', async () => {
