@@ -4,7 +4,7 @@ import { Preferences } from './preferences.svelte'
 /** Storage in memory, starting with `saved` as the preferences. */
 const storageWith = (saved?: string): Storage => {
   const items = new Map<string, string>()
-  if (saved !== undefined) items.set('typer:preferences', saved)
+  if (saved !== undefined) items.set('nib:preferences', saved)
   return {
     getItem: (key: string) => items.get(key) ?? null,
     setItem: (key: string, value: string) => {

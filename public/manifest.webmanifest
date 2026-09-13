@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "typer",
-  "short_name": "typer",
+  "name": "nib",
+  "short_name": "nib",
   "description": "A minimal Markdown and text editor for local files.",
   "start_url": "./",
   "scope": "./",

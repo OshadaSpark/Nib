@@ -1,4 +1,4 @@
-# typer
+# nib
 
 A minimal Markdown and text editor for local files, built on [CodeMirror 6](https://codemirror.net)
 with [Svelte 5](https://svelte.dev), [TypeScript](https://www.typescriptlang.org) and

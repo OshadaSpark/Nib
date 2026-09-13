@@ -11,7 +11,7 @@ declare const self: ServiceWorkerGlobalScope
 declare const __PRECACHE__: string[]
 declare const __VERSION__: string
 
-const prefix = 'typer-'
+const prefix = 'nib-'
 const cacheName = prefix + __VERSION__
 
 self.addEventListener('install', (event) => {

@@ -49,7 +49,7 @@
       : '#fdfdfc',
   )
 
-  const title = $derived(`${workspace.file.dirty ? '• ' : ''}${workspace.file.name} — typer`)
+  const title = $derived(`${workspace.file.dirty ? '• ' : ''}${workspace.file.name} — nib`)
 
   /** The editor's selection, for the status bar. */
   let selection = $state.raw<EditorSelection | null>(null)

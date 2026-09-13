@@ -27,7 +27,7 @@ test.describe('installed app', () => {
     })
 
     expect(manifest).toMatchObject({
-      name: 'typer',
+      name: 'nib',
       display: 'standalone',
       start_url: './',
       file_handlers: [
@@ -57,7 +57,7 @@ test.describe('installed app', () => {
 
     await page.goto('/')
 
-    await expect(page).toHaveTitle('launched.md — typer')
+    await expect(page).toHaveTitle('launched.md — nib')
     await expect(page.getByRole('textbox', { name: 'Document' })).toContainText('Launched')
   })
 })

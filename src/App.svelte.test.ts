@@ -60,13 +60,13 @@ describe('App', () => {
     expect(screen.getByText('Untitled.md')).toBeInTheDocument()
     expect(screen.queryByText('Edited')).not.toBeInTheDocument()
     await vi.waitFor(() => {
-      expect(document.title).toBe('Untitled.md — typer')
+      expect(document.title).toBe('Untitled.md — nib')
     })
 
     type('text')
 
     expect(await screen.findByText('Edited')).toBeInTheDocument()
-    expect(document.title).toBe('• Untitled.md — typer')
+    expect(document.title).toBe('• Untitled.md — nib')
   })
 
   it('counts lines, words and characters, or those selected', async () => {
