@@ -63,18 +63,27 @@ test.describe('block rendering', () => {
     await expect(editor(page)).toContainText('| a | b |')
   })
 
-  test('shows images below their Markdown', async ({ context, page }) => {
-    await context.route('https://example.com/pixel.png', (route) =>
-      route.fulfill({ body: png, contentType: 'image/png' }),
-    )
-
-    await page.keyboard.insertText('![A pixel](https://example.com/pixel.png)')
+  test('shows images below their Markdown', async ({ page }) => {
+    const src = `data:image/png;base64,${png.toString('base64')}`
+    await page.keyboard.insertText(`![A pixel](${src})`)
 
     const image = editor(page).getByRole('img', { name: 'A pixel' })
     await expect(image).toBeVisible()
     expect(await image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(1)
-    await expect(editor(page).locator('.cm-line')).toHaveText([
-      '![A pixel](https://example.com/pixel.png)',
-    ])
+    await expect(editor(page).locator('.cm-line')).toHaveText([`![A pixel](${src})`])
+  })
+
+  test('never loads images from the web', async ({ context, page }) => {
+    let requested = false
+    await context.route('https://example.com/pixel.png', (route) => {
+      requested = true
+      return route.fulfill({ body: png, contentType: 'image/png' })
+    })
+
+    await page.keyboard.insertText('![A pixel](https://example.com/pixel.png)\n\nEnd')
+
+    await expect(editor(page)).toContainText('End')
+    await expect(editor(page).getByRole('img')).toHaveCount(0)
+    expect(requested).toBe(false)
   })
 })

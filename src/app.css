@@ -34,6 +34,8 @@
 
   /* Height of the header, which the sidebar's heading matches. */
   --bar-height: 3rem;
+  /* Room for the window's close, minimise and zoom buttons, over the top start corner of the page. */
+  --window-controls: 5rem;
 
   --font-sans: system-ui, sans-serif;
   --font-serif: ui-serif, 'Iowan Old Style', Charter, Georgia, serif;
@@ -46,11 +48,7 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/*
- * A theme picked in the preferences, over the system's. Set in the stylesheet rather than inline, as
- * the build compiles `light-dark()` for older browsers into variables that only `color-scheme`
- * declarations here switch.
- */
+/* A theme picked in the preferences, over the system's: every `light-dark()` colour follows it. */
 :root[data-theme='light'] {
   color-scheme: light;
 }

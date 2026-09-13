@@ -51,24 +51,25 @@ describe('isShowableImage', () => {
   const plain = EditorState.create()
   const withFiles = EditorState.create({ extensions: localFiles.of(files()) })
 
-  it.each(['https://example.com/a.png', 'http://example.com/a.png', 'data:image/png;base64,AA=='])(
-    'shows %s',
-    (src) => {
-      expect(isShowableImage(plain, src)).toBe(true)
-    },
-  )
+  it('shows data URLs', () => {
+    expect(isShowableImage(plain, 'data:image/png;base64,AA==')).toBe(true)
+  })
 
   it.each(['a.png', '../a.png', '/a.png'])('shows %s only with local files', (src) => {
     expect(isShowableImage(plain, src)).toBe(false)
     expect(isShowableImage(withFiles, src)).toBe(true)
   })
 
-  it.each(['javascript:alert(1)', 'data:text/html,x', '#top', '//example.com/a.png'])(
-    'does not show %s',
-    (src) => {
-      expect(isShowableImage(withFiles, src)).toBe(false)
-    },
-  )
+  it.each([
+    'https://example.com/a.png',
+    'http://example.com/a.png',
+    'javascript:alert(1)',
+    'data:text/html,x',
+    '#top',
+    '//example.com/a.png',
+  ])('does not show %s', (src) => {
+    expect(isShowableImage(withFiles, src)).toBe(false)
+  })
 })
 
 describe('openLink', () => {

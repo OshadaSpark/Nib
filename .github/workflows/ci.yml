@@ -59,36 +59,17 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
-  deploy:
-    name: Deploy to GitHub Pages
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    needs: [quality, unit, e2e]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  rust:
+    name: Rust format, lint & tests
+    runs-on: macos-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - name: Configure Pages
-        id: pages
-        uses: actions/configure-pages@v6
-      # Project sites are served from a sub-path (e.g. `/<repo>/`), so build with that base.
-      - name: Build
-        run: pnpm build --base "$BASE_PATH/"
-        env:
-          BASE_PATH: ${{ steps.pages.outputs.base_path }}
-      - uses: actions/upload-pages-artifact@v5
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: dist/
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v5
+          workspaces: src-tauri
+      # The app embeds the frontend's build, so compiling it needs `dist/`.
+      - run: pnpm build
+      - run: pnpm check:rust
+      - run: pnpm test:rust

@@ -1,0 +1,31 @@
+[package]
+name = "nib"
+version = "0.1.0"
+description = "A minimal Markdown and text editor for local files"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[lib]
+name = "nib_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.3", features = [] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
+# Small and fast: https://v2.tauri.app/concept/size/
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

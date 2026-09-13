@@ -73,7 +73,8 @@
 </script>
 
 <nav aria-label="Files">
-  <div class="heading">
+  <!-- At the top of the window, so it drags it, from beside its controls. -->
+  <div class="heading" data-tauri-drag-region="deep">
     <h2 class="truncate" title={folder.name}>{folder.name}</h2>
     <button
       type="button"
@@ -99,7 +100,10 @@
     }
   }
 
-  /* As tall as the header beside it, and kept in view as the tree scrolls. */
+  /*
+   * As tall as the header beside it, and kept in view as the tree scrolls. The window's controls sit
+   * over its start.
+   */
   .heading {
     position: sticky;
     inset-block-start: 0;
@@ -108,7 +112,7 @@
     align-items: center;
     gap: 0.5rem;
     block-size: var(--bar-height);
-    padding-inline: 1rem 0.5rem;
+    padding-inline: var(--window-controls) 0.5rem;
     background-color: var(--color-chrome);
   }
 

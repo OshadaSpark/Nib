@@ -143,6 +143,9 @@ export const openLink = (state: EditorState, url: string | undefined): boolean =
   return isRelative(url) && (state.facet(localFiles)?.open(url) ?? false)
 }
 
-/** Whether an image can be shown at all: from the web, a data URL, or `localFiles`. */
+/**
+ * Whether an image can be shown at all: from a data URL or `localFiles`. Never from the web, which
+ * would tell the server when a document is opened (the content security policy blocks it too).
+ */
 export const isShowableImage = (state: EditorState, src: string): boolean =>
-  /^(?:https?:|data:image\/)/i.test(src) || (isRelative(src) && state.facet(localFiles) !== null)
+  /^data:image\//i.test(src) || (isRelative(src) && state.facet(localFiles) !== null)

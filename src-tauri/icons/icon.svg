@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- On the macOS icon grid: the shape takes 824 of the 1024 points, centred. -->
+  <g transform="translate(100 100) scale(1.609375)">
+    <rect width="512" height="512" rx="115" fill="#2b2b2e"/>
+    <path d="M150 344V168h44l80 104V168h44v176h-44l-80-104v104z" fill="#fdfdfc"/>
+    <rect x="342" y="168" width="20" height="176" rx="10" fill="#7ea6f4"/>
+  </g>
+</svg>

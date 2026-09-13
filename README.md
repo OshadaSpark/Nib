@@ -1,39 +1,52 @@
-# nib
+# Nib
 
-A minimal Markdown and text editor for local files, built on [CodeMirror 6](https://codemirror.net)
-with [Svelte 5](https://svelte.dev), [TypeScript](https://www.typescriptlang.org) and
-[Vite](https://vite.dev).
+A minimal Markdown and text editor for local files, for macOS: a [Tauri 2](https://v2.tauri.app)
+app built on [CodeMirror 6](https://codemirror.net) with [Svelte 5](https://svelte.dev),
+[TypeScript](https://www.typescriptlang.org) and [Vite](https://vite.dev). It makes no network
+requests.
 
 ## Requirements
 
+- macOS 26 or later
 - Node.js 24 (see [`.nvmrc`](.nvmrc))
 - pnpm (the exact version is pinned in `package.json` → `packageManager`)
+- Rust (stable, through [rustup](https://rustup.rs)) and the Xcode Command Line Tools
+  (`xcode-select --install`)
 
 ```sh
 pnpm install
 pnpm exec playwright install   # browsers for the E2E tests (first time only)
-pnpm dev
+pnpm tauri dev                 # the app, with the frontend reloading as it changes
 ```
+
+`pnpm tauri build` builds `src-tauri/target/release/bundle/macos/Nib.app` (about 4 MB) and a disk
+image. Copy the app to `/Applications` to install it. `pnpm tauri build --bundles app` builds only
+the app.
 
 ## Scripts
 
 | Script               | Description                                                                 |
 | -------------------- | --------------------------------------------------------------------------- |
-| `pnpm dev`           | Start the dev server with HMR                                               |
-| `pnpm build`         | Build for production into `dist/`                                           |
-| `pnpm preview`       | Serve the production build locally                                          |
+| `pnpm tauri dev`     | Run the app, with the frontend's dev server and HMR                         |
+| `pnpm tauri build`   | Build the app and its disk image                                            |
+| `pnpm dev`           | Start the frontend's dev server alone, to use in a browser                  |
+| `pnpm build`         | Build the frontend into `dist/`, which the app embeds                       |
+| `pnpm preview`       | Serve the frontend's build locally                                          |
 | `pnpm check`         | Type-check the app (`svelte-check`) and the tooling/E2E code (`tsc`)        |
+| `pnpm check:rust`    | Check the Rust code's formatting (`cargo fmt`) and lint it (Clippy)         |
 | `pnpm lint`          | Lint with ESLint (fails on any warning); `pnpm lint:fix` applies auto-fixes |
 | `pnpm format`        | Format with Prettier; `pnpm format:check` only verifies                     |
 | `pnpm test`          | Run unit and component tests once; `pnpm test:watch` for watch mode         |
 | `pnpm test:coverage` | Run unit and component tests with a coverage report in `coverage/`          |
 | `pnpm test:e2e`      | Build the app and run the Playwright E2E tests against it                   |
+| `pnpm test:rust`     | Run the Rust tests                                                          |
 
 ## Project structure
 
 ```text
 src/
   lib/              Reusable components and modules, imported via `$lib/...`
+    desktop/        The app's integration with macOS through Tauri, such as the menu bar
     dialog/         The confirmation dialog
     preferences/    The user's preferences and their panel
     editor/         The CodeMirror editor component, its extensions and theme
@@ -41,9 +54,8 @@ src/
     ui/             Generic UI pieces, such as the icons
   App.svelte        Root component: the layout, the editor and the file tree
   Header.svelte     The header: file name and its menu (file actions and their shortcuts), toolbar
-  main.ts           Entry point, which also registers the service worker
-  serviceWorker.ts  The service worker, for working offline
-public/             Static files served as-is from the base path: icons and the app manifest
+  main.ts           Entry point
+src-tauri/          The Tauri app: its Rust code, configuration, permissions and icons
 e2e/                Playwright E2E tests
 ```
 
@@ -102,7 +114,8 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
 - `fileAccess.ts` uses the
   [File System Access API](https://developer.mozilla.org/docs/Web/API/File_System_API) where it is
   available (Chromium-based browsers), so saving writes back to the opened file. Other browsers open
-  files with a file input and save them as downloads.
+  files with a file input and save them as downloads, and so does the app for now, as WebKit has no
+  such API, until file access moves to Rust.
 - `DropOverlay.svelte` opens files dropped anywhere on the page. In Chromium, the dropped file's
   handle is kept, so saving writes back to it.
 - `textFile.svelte.ts` holds the open file. It tracks unsaved changes against the last saved content
@@ -129,7 +142,9 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
 
 | Shortcut                 | Action                            |
 | ------------------------ | --------------------------------- |
+| ⌘N                       | New (menu bar)                    |
 | ⌘/Ctrl+O                 | Open                              |
+| ⇧⌘O                      | Open folder (menu bar)            |
 | ⌘/Ctrl+S                 | Save                              |
 | ⌘/Ctrl+Shift+S           | Save as                           |
 | ⌘/Ctrl+F                 | Find and replace                  |
@@ -141,8 +156,9 @@ Files are opened and saved in [`src/lib/files/`](src/lib/files):
 
 In Markdown files, ⌘/Ctrl+click on a link opens it: web and email links in a new tab, and relative
 links (such as `[plan](notes/plan.md)`) in the editor, when the file is in an open folder. Clicking a
-checkbox toggles its task, and Alt+Enter does either at the cursor. Images show from web and data
-URLs, and from relative paths in an open folder. Relative paths start from the file's directory, or
+checkbox toggles its task, and Alt+Enter does either at the cursor. Images show from data URLs and
+from relative paths in an open folder, never from the web: loading them would tell the server when
+a document is opened (the app's content security policy blocks them too). Relative paths start from the file's directory, or
 from the folder if they start with `/`. Clicking a table shows its source, with the cursor in the
 clicked cell.
 
@@ -161,23 +177,27 @@ Settings, in the toolbar's More menu (or ⌘/Ctrl+,), opens the preferences, a m
   rather than hidden (`markdownSourceSupport` in `markdown/language.ts`). The editing commands and
   shortcuts stay.
 
-## Installable app
+## Desktop app
 
-The app works offline and can be installed, from the browser's address bar in Chromium or with Add
-to Home Screen on phones:
+[`src-tauri/`](src-tauri) holds the [Tauri 2](https://v2.tauri.app) app, which shows the frontend
+in the system's WebKit (WKWebView):
 
-- [`public/manifest.webmanifest`](public/manifest.webmanifest) describes the app and its icons. The
-  icons are rendered from [`public/favicon.svg`](public/favicon.svg).
-- [`src/serviceWorker.ts`](src/serviceWorker.ts) caches the whole build when it installs, then
-  serves the app from that cache. A small plugin in [`vite.config.ts`](vite.config.ts) builds it
-  into `sw.js`, with the list of files to cache and a version that changes with them. A new version
-  takes over once every tab of the old one has closed.
+- `tauri.conf.json` configures the window, the bundle and the content security policy, which allows
+  no network access: images only from the app, `blob:` and `data:` URLs. The window's title bar is
+  overlaid on the page, so the header (or, beside it, the file tree's heading) leaves room for the
+  close, minimise and zoom buttons (`--window-controls` in `app.css`) and drags the window
+  (`data-tauri-drag-region="deep"`).
+- `capabilities/default.json` lists what the page may ask of Tauri.
+- `src/lib.rs` starts the app. The release profile in `Cargo.toml` optimises for size.
+- `icons/` holds the app's icons, generated from `icon.svg` with `pnpm tauri icon src-tauri/icons/icon.svg`
+  (then delete the icons for other platforms, keeping `icon.icns` and `icon.png`).
 
-Installed in Chromium, the app registers as a handler for `.md`, `.markdown` and `.txt` files (the
-manifest's `file_handlers`), so they can be opened with it from the system, each in its own window.
-It receives them through `window.launchQueue`, with handles, so saving writes back to the file.
+The menu bar is built by the frontend ([`src/lib/desktop/menu.ts`](src/lib/desktop/menu.ts)), so
+its File menu runs the same actions as the header's. The Edit menu uses the system's commands, which
+WKWebView needs for cut, copy, paste and select all.
 
-The service worker is only registered in production builds (`pnpm build` and `pnpm preview`).
+The frontend is built for the WebKit of macOS 26 only (`build.target` in `vite.config.ts`), so modern
+CSS such as `light-dark()` ships as written.
 
 ## TypeScript
 
@@ -186,8 +206,6 @@ The service worker is only registered in production builds (`pnpm build` and `pn
 - `tsconfig.app.json` covers the browser code in `src/` (including tests).
 - `tsconfig.node.json` covers the Node.js tooling: `*.config.ts` and `svelte.config.js`.
 - `tsconfig.e2e.json` covers the E2E tests in `e2e/`, with DOM types for code that runs in the page.
-- `tsconfig.worker.json` covers the service worker, which has a worker's globals rather than a
-  page's.
 
 All Svelte components must use `<script lang="ts">` (enforced by ESLint), and runes mode is enforced
 for project code in [`svelte.config.js`](svelte.config.js).
@@ -209,7 +227,8 @@ Coverage fails below 80% for lines, functions and statements. Branch coverage is
 modules only, as compiled Svelte templates contain synthetic branches.
 
 E2E tests in `e2e/` run with [Playwright](https://playwright.dev) against the production build in
-Chromium, Firefox and WebKit.
+Chromium, Firefox and WebKit. The app itself can't be automated, as `tauri-driver` doesn't support
+macOS: native parts, such as the menu bar and the pickers, are checked by hand.
 
 ## Git hooks
 
@@ -221,7 +240,7 @@ Chromium, Firefox and WebKit.
   [Conventional Commits](https://www.conventionalcommits.org) (e.g. `feat: add scoreboard`).
 - **pre-push**: type-checks and runs the unit and component tests.
 
-## CI/CD
+## CI
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to
 `main`:
@@ -229,8 +248,7 @@ Chromium, Firefox and WebKit.
 1. **quality**: format check, lint and type-check
 2. **unit**: unit and component tests with coverage
 3. **e2e**: Playwright tests in all browsers (the HTML report is uploaded as an artifact)
-4. **deploy** (pushes to `main` only, after all checks pass): builds and deploys to GitHub Pages
+4. **rust**: on macOS, Rust formatting, Clippy and tests
 
-To enable deployment, set **Settings → Pages → Build and deployment → Source** to
-**GitHub Actions**. Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml)) opens weekly
-update PRs for npm packages and GitHub Actions.
+Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml)) opens weekly update PRs for npm
+packages, Rust crates and GitHub Actions.
